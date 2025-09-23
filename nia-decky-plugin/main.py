@@ -120,16 +120,10 @@ class Plugin:
   async def verify_resources(self) -> Dict[str, Any]:
     details: List[str] = []
     status = "ok"
-    try:
-      await self._ensure_model(details)
-    except Exception as exc:  # noqa: BLE001
+    if not await self._ensure_model(details):
       status = "degraded"
-      details.append(f"Modelo: {exc}")
-    try:
-      await self._ensure_voice(details)
-    except Exception as exc:  # noqa: BLE001
+    if not await self._ensure_voice(details):
       status = "degraded"
-      details.append(f"Voz: {exc}")
     return {"status": status, "details": details or ["Recursos disponibles"]}
 
   def _setup_logging(self):
@@ -155,41 +149,58 @@ class Plugin:
 
   async def _ensure_resources(self):
     details: List[str] = []
-    await self._ensure_model(details)
-    await self._ensure_voice(details)
+    status = "ok"
+    if not await self._ensure_model(details):
+      status = "degraded"
+    if not await self._ensure_voice(details):
+      status = "degraded"
     if details:
       self.logger.info("Estado de recursos: %s", details)
+    self.settings["status"] = status
+    atomic_write_json(get_config_path(), self.settings)
 
-  async def _ensure_model(self, details: List[str]):
+  async def _ensure_model(self, details: List[str]) -> bool:
     model_info = self.settings.get("model", {})
     model_path = model_info.get("path")
     url = model_info.get("gguf_url")
     checksum = model_info.get("checksum", "")
     if not model_path or not url:
       details.append("Modelo no configurado")
-      return
+      return False
     destination = Path(os.path.expanduser(model_path))
     if destination.exists():
       details.append("Modelo disponible")
-      return
+      return True
     destination.parent.mkdir(parents=True, exist_ok=True)
-    await self._download(url, destination, checksum)
+    try:
+      await self._download(url, destination, checksum)
+    except Exception as exc:  # noqa: BLE001
+      self.logger.warning("No se pudo descargar el modelo LLM: %s", exc)
+      details.append(f"Modelo ausente: {exc}")
+      return False
     details.append("Modelo descargado")
+    return True
 
-  async def _ensure_voice(self, details: List[str]):
+  async def _ensure_voice(self, details: List[str]) -> bool:
     tts_info = self.settings.get("tts", {})
     path = tts_info.get("path")
     url = tts_info.get("voice_url")
     checksum = tts_info.get("checksum", "")
     if not path or not url:
       details.append("Voz no configurada")
-      return
+      return False
     destination = Path(os.path.expanduser(path))
     if destination.exists():
       details.append("Voz disponible")
-      return
-    await tts.download_file(url, destination, checksum)
+      return True
+    try:
+      await tts.download_file(url, destination, checksum)
+    except Exception as exc:  # noqa: BLE001
+      self.logger.warning("No se pudo descargar la voz TTS: %s", exc)
+      details.append(f"Voz ausente: {exc}")
+      return False
     details.append("Voz descargada")
+    return True
 
   async def _download(self, url: str, destination: Path, checksum: str = ""):
     try:
