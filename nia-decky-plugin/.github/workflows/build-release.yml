@@ -1,0 +1,57 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: true
+
+      - name: Build frontend
+        working-directory: nia-decky-plugin
+        run: |
+          pnpm build
+          pnpm lint
+          pnpm typecheck
+
+      - name: Validate artefacts
+        working-directory: nia-decky-plugin
+        run: |
+          test -f dist/index.js
+          test -f main.py
+          test -f plugin.json
+          test -f LICENSE
+
+      - name: Package zip
+        working-directory: nia-decky-plugin
+        run: |
+          scripts/pack.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nia-decky-${{ github.ref_name }}
+          path: nia-decky-plugin/out/nia-decky-${{ github.ref_name }}.zip
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: nia-decky-plugin/out/nia-decky-${{ github.ref_name }}.zip

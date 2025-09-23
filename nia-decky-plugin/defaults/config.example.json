@@ -1,0 +1,23 @@
+{
+  "mode": "offline",
+  "model": {
+    "gguf_url": "https://example.org/models/mini-llm-q4.gguf",
+    "path": "~/.local/share/nia-decky/models/mini-llm-q4.gguf",
+    "checksum": "",
+    "ctx": 2048,
+    "temperature": 0.8,
+    "top_p": 0.9
+  },
+  "tts": {
+    "voice_url": "https://example.org/piper/es-voice.onnx",
+    "path": "~/.local/share/nia-decky/piper/es-voice.onnx",
+    "checksum": ""
+  },
+  "remote": {
+    "enabled": false,
+    "endpoint": "http://192.168.1.100:8080/generate",
+    "auth": "",
+    "timeout": 15
+  },
+  "status": "ok"
+}
