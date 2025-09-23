@@ -1,7 +1,7 @@
 import random
 import time
 from dataclasses import dataclass
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import AsyncGenerator, Dict, Iterable, List, Optional
 
 from . import llm_local, llm_remote
 
