@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nia-decky"
+mkdir -p "$CACHE_DIR"
+TARGET="$CACHE_DIR/llama_cpp_cli"
+
+URL_DEFAULT="https://huggingface.co/eachadea/ggml-model-q4_0-llama/resolve/main/llama-cli"
+URL="${LLAMA_CPP_URL:-$URL_DEFAULT}"
+
+if [[ ! -x "$TARGET" ]]; then
+  echo "[llama_cpp] Descargando binario llama.cpp desde $URL" >&2
+  tmp="$(mktemp "$CACHE_DIR/llama.XXXX")"
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --location --output "$tmp" "$URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "$tmp" "$URL"
+  else
+    echo "[llama_cpp] Necesita curl o wget" >&2
+    exit 1
+  fi
+  chmod +x "$tmp"
+  mv "$tmp" "$TARGET"
+fi
+
+exec "$TARGET" "$@"
