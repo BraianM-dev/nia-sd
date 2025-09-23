@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_ZIP_URL="https://example.org/releases/nia-decky-latest.zip"
+DEFAULT_ZIP_URL="https://github.com/BraianM-dev/nia-sd/archive/refs/heads/main.zip"
 ZIP_SOURCE="$DEFAULT_ZIP_URL"
 FORCE_INSTALL=0
 LOG=""
