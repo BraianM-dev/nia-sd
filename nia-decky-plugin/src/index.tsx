@@ -133,7 +133,7 @@ function App() {
           </ButtonItem>
         </PanelSectionRow>
       </PanelSection>
-      {settingsOpen && <SettingsView settings={settings} onSettingsChange={setSettings} />}
+      {settingsOpen && <SettingsView settings={settings} activeGame={game || null} onSettingsChange={setSettings} />}
     </div>
   );
 }
