@@ -79,6 +79,9 @@ class NiaNarrator:
         settings = self.settings_provider()
         narrator = settings.get("narrator", {})
         game_id = str(game.get("id", game.get("session_key", "unknown")))
+        profile = settings.get("game_profiles", {}).get(game_id, {})
+        if isinstance(profile, dict) and profile.get("persona") in _PERSONA:
+            narrator = {**narrator, "persona": profile["persona"]}
         metadata = self.store.get_metadata(game_id)
         if metadata is None and game.get("appid") and game_id not in self._metadata_checked:
             self._metadata_checked.add(game_id)
@@ -101,11 +104,14 @@ class NiaNarrator:
             except Exception as exc:
                 error = str(exc)[:240]
         if not text:
-            text = self._fallback(game, event, metadata, stats, minutes, session_started)
+            text = self._fallback(game, event, metadata, stats, minutes, session_started, narrator.get("persona"))
             if not error:
                 error = "Usando comentario local contextual"
         if not self.store.add_narration(game_id, str(event.get("type", "commentary")), text):
-            text = self._fallback(game, event, metadata, stats, minutes, session_started + int(__import__("time").time()))
+            text = self._fallback(
+                game, event, metadata, stats, minutes,
+                session_started + int(__import__("time").time()), narrator.get("persona"),
+            )
             self.store.add_narration(game_id, str(event.get("type", "commentary")), text)
             error = "Se evitó repetir la última narración"
         return {
@@ -204,14 +210,14 @@ class NiaNarrator:
         return cleaned[:1600]
 
     def _fallback(self, game: Dict[str, Any], event: Dict[str, Any], metadata: Dict[str, Any],
-                  stats: Dict[str, int], minutes: int, seed: float) -> str:
+                  stats: Dict[str, int], minutes: int, seed: float, persona: Optional[str] = None) -> str:
         event_type = str(event.get("type", "commentary"))
         title = str(game.get("title") or "Juego activo")
         detail = str(event.get("detail") or "un momento de la partida")[:160]
         context = str(metadata.get("summary") or game.get("platform") or "la sesión actual")
         options = _TEMPLATES.get(event_type, _TEMPLATES["commentary"])
         index = abs(hash((game.get("id"), event_type, int(seed), stats.get(event_type, 0)))) % len(options)
-        tone = str(self.settings_provider().get("narrator", {}).get("persona", "amable"))
+        tone = persona or str(self.settings_provider().get("narrator", {}).get("persona", "amable"))
         text = options[index].format(
             title=title, deaths=stats.get("deaths", 0),
             checkpoints=stats.get("checkpoints", 0), objectives=stats.get("objectives", 0),
@@ -222,7 +228,7 @@ class NiaNarrator:
         elif tone == "grosero":
             text += " La partida viene jodida, pero todavía no está cerrada."
         elif tone == "epico":
-            text = text.replace("NIA", "El cronista")
+            text = "La crónica canta: " + text.replace("NIA", "el cronista")
         return text[:1000]
 
     async def probe(self) -> Dict[str, Any]:
