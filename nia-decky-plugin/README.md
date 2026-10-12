@@ -1,4 +1,4 @@
-# NIA para Decky — narrador de videojuegos
+# NIA Decky 0.4.0 — narrador de videojuegos
 
 NIA es un plugin para Decky Loader en Steam Deck/SteamOS. Detecta el juego activo, guarda el contexto de cada sesión y crea comentarios breves con un modelo local, un proveedor de API o un narrador contextual que no usa LLM.
 
@@ -11,7 +11,7 @@ NIA incluye un instalador opcional para llama.cpp y Qwen2.5 1.5B Instruct Q4_K_M
 - Instala los recursos en el directorio de datos de NIA, sin `sudo`, paquetes del sistema ni cambios a SteamOS.
 - Ejecuta llama-server solo cuando NIA necesita narrar, enlazado a `127.0.0.1` y protegido con una clave aleatoria.
 - Por defecto limita la inferencia a 2 hilos, contexto de 2048 tokens y prioridad baja. llama.cpp descarga los pesos de la RAM tras 90 segundos sin uso.
-- Si una descarga se interrumpe, la conserva para reanudarla. También se puede indicar una ruta a otro GGUF compatible.
+- Comprueba el espacio libre antes de descargar. Una descarga se puede cancelar y reanudar; también se puede indicar una ruta a otro GGUF compatible.
 
 La inferencia local usa CPU y puede tardar más que una API remota; consume CPU mientras genera. Los límites reducen el impacto, pero no garantizan cero cambios en FPS. NIA no genera narraciones en segundo plano de forma periódica: consulta al modelo cuando se inicia un juego (si esa opción está activada) o cuando se registra un evento.
 
@@ -23,7 +23,7 @@ Desde Ajustes se puede elegir:
 | --- | --- | --- |
 | NIA local | llama.cpp incluido | Qwen2.5 1.5B Q4_K_M |
 | Ollama | Local o en otra máquina | `qwen2.5:3b` |
-| OpenAI API | Chat Completions | `gpt-5.6-terra` |
+| OpenAI API | Chat Completions | `gpt-6-luna` |
 | xAI Grok API | Chat Completions | `grok-4.7` |
 | DeepSeek API | Chat Completions | `deepseek-v4-flash` |
 | Google Gemini API | Compatibilidad OpenAI | `gemini-3.8-flash` |
@@ -34,7 +34,7 @@ Cada proveedor remoto requiere una clave API del servicio elegido. La clave se g
 
 Los endpoints y modelos se pueden editar. Si el proveedor cambia su catálogo, se puede elegir otro modelo compatible sin actualizar NIA. Para usar Ollama de una computadora distinta, escribe su dirección de red; una configuración previa de Ollama en `localhost` se migra al motor local incluido.
 
-## Partidas, progreso y detección
+## Perfiles por juego\n\nDesde el panel lateral se puede guardar una personalidad y una voz Piper `.onnx` por juego activo. Los campos vacíos heredan el ajuste predeterminado. El perfil se guarda localmente con el resto de la configuración.\n\n## Partidas, progreso y detección
 
 NIA detecta procesos de juegos y manifiestos locales de Steam. Puede buscar ejecutables en carpetas que agregues, por ejemplo bibliotecas usadas por Heroic, GOG, Epic o Lutris. No necesita que el juego se ejecute mediante una sola tienda para poder aparecer en el catálogo, aunque cada launcher guarda sus instalaciones de forma distinta.
 
