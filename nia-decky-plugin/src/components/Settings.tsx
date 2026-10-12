@@ -9,7 +9,7 @@ type Props = { settings: Settings | null; activeGame: GameInfo | null; onSetting
 const PROVIDER_PRESETS: Partial<Record<Provider, { endpoint: string; model: string }>> = {
   "local-llama": { endpoint: "", model: "qwen2.5-1.5b-instruct-q4_k_m" },
   ollama: { endpoint: "http://127.0.0.1:11434", model: "qwen2.5:3b" },
-  openai: { endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-5.6-terra" },
+  openai: { endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-6-luna" },
   grok: { endpoint: "https://api.x.ai/v1/chat/completions", model: "grok-4.7" },
   deepseek: { endpoint: "https://api.deepseek.com/chat/completions", model: "deepseek-v4-flash" },
   gemini: {
