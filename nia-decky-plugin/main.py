@@ -33,6 +33,7 @@ DEFAULTS = {
         "api_key": "", "timeout": 8, "max_tokens": 96, "temperature": 0.7,
         "persona": "amable", "auto_on_start": False, "auto_speak": False,
     },
+    "game_profiles": {},
     "game_detection": {"enabled": True, "scan_interval_seconds": 12, "roots": []},
     "local_runtime": {"threads": 2, "context_size": 2048, "idle_sleep_seconds": 90},
     "status": "ready",
@@ -128,6 +129,26 @@ class Plugin:
         if not isinstance(roots, list):
             raise ValueError("Las carpetas adicionales deben ser una lista")
         detection["roots"] = [str(path)[:1024] for path in roots[:50] if str(path).strip()]
+        profiles = self.settings.get("game_profiles", {})
+        if not isinstance(profiles, dict):
+            raise ValueError("Los perfiles por juego deben ser un objeto")
+        clean_profiles: Dict[str, Dict[str, str]] = {}
+        for game_id, profile in list(profiles.items())[:100]:
+            if not isinstance(profile, dict):
+                continue
+            safe_id = str(game_id).strip()[:180]
+            if not safe_id:
+                continue
+            clean_profile: Dict[str, str] = {}
+            persona = str(profile.get("persona", ""))
+            voice_model = str(profile.get("voice_model", "")).strip()
+            if persona in {"amable", "sarcastico", "grosero", "epico"}:
+                clean_profile["persona"] = persona
+            if voice_model:
+                clean_profile["voice_model"] = voice_model[:1024]
+            if clean_profile:
+                clean_profiles[safe_id] = clean_profile
+        self.settings["game_profiles"] = clean_profiles
         local = self.settings.get("local_runtime", {})
         local["threads"] = max(1, min(4, int(local.get("threads", 2))))
         local["context_size"] = max(1024, min(4096, int(local.get("context_size", 2048))))
@@ -225,7 +246,9 @@ class Plugin:
         tts_config = self.settings.get("tts", {})
         if not tts_config.get("enabled"):
             raise RuntimeError("Activa Piper en Ajustes para habilitar la voz")
-        voice_path = voice or tts_config.get("voice_model") or tts_config.get("path")
+        game_id = str((self._active_game or {}).get("id", ""))
+        profile_voice = self.settings.get("game_profiles", {}).get(game_id, {}).get("voice_model", "")
+        voice_path = voice or profile_voice or tts_config.get("voice_model") or tts_config.get("path")
         return await tts.synthesize(
             str(text)[:3000], str(voice_path or ""),
             float(tts_config.get("speed", 1.0)), str(tts_config.get("piper_binary", "")),
@@ -274,6 +297,11 @@ class Plugin:
         if not self.local_runtime:
             return {"installing": False, "progress": 0, "message": "Motor local no disponible"}
         return self.local_runtime.remove()
+
+    async def local_runtime_cancel(self) -> Dict[str, Any]:
+        if not self.local_runtime:
+            return {"installing": False, "progress": 0, "message": "Motor local no disponible"}
+        return self.local_runtime.cancel_install()
 
     async def story_generate(self, params: Dict[str, Any]) -> List[Dict[str, Any]]:
         from backend.helpers.storyteller import Storyteller
