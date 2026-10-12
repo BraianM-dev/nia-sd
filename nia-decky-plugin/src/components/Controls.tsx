@@ -1,4 +1,4 @@
-import { ButtonItem, Field, Focusable, FormDivider, TextField } from "decky";
+import { ButtonItem, Field, Focusable, FormDivider, TextField } from "@decky/ui";
 import { useState } from "react";
 import { StoryParams } from "../lib/api";
 import { clampSeed, getGenres, sanitizeList, validateStoryParams } from "../lib/validate";

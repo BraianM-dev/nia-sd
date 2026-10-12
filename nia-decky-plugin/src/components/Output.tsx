@@ -1,4 +1,4 @@
-import { ButtonItem, Focusable, PanelSection, PanelSectionRow, Spinner } from "decky";
+import { ButtonItem, Focusable, PanelSection, PanelSectionRow, Spinner } from "@decky/ui";
 import { useEffect, useRef } from "react";
 
 type Props = {

@@ -1,180 +1,143 @@
-import { definePlugin, PanelSection, PanelSectionRow, QuickAccessTab, Router } from "decky";
-import { useEffect, useState } from "react";
-import { Controls } from "./components/Controls";
-import { Output } from "./components/Output";
-import { Saves } from "./components/Saves";
+import { definePlugin } from "@decky/api";
+import { ButtonItem, Field, Focusable, PanelSection, PanelSectionRow, Spinner, staticClasses, TextField } from "@decky/ui";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SettingsView } from "./components/Settings";
-import { api, Settings, StoryChunk, StoryParams } from "./lib/api";
+import { api, GameEventType, GameState, NarrationResult, Settings } from "./lib/api";
 
-function useSettings() {
+function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [narration, setNarration] = useState("");
+  const [status, setStatus] = useState("");
+  const [detail, setDetail] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const currentGameId = useRef("");
 
-  useEffect(() => {
-    api
-      .getSettings()
-      .then((value) => setSettings(value))
-      .catch((err) => {
-        console.error(err);
-        setSettings(null);
-      })
-      .finally(() => setLoading(false));
+  const refresh = useCallback(async () => {
+    try {
+      const [newState, newSettings] = await Promise.all([api.getGameState(), api.getSettings()]);
+      setGameState(newState);
+      setSettings(newSettings);
+      const gameId = newState.active_game?.id || "";
+      if (gameId !== currentGameId.current) {
+        currentGameId.current = gameId;
+        setNarration(newState.latest_narration?.text || "");
+      } else if (newState.latest_narration?.text) {
+        setNarration(newState.latest_narration.text);
+      }
+    } catch (error) {
+      console.error(error);
+      setStatus("NIA no pudo leer el estado del juego");
+    }
   }, []);
 
-  return { settings, setSettings, loading };
-}
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 12000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
 
-function GenerarTab() {
-  const { settings, setSettings } = useSettings();
-  const [story, setStory] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
-  const [generating, setGenerating] = useState<boolean>(false);
-
-  const handleGenerate = async (params: StoryParams) => {
-    setGenerating(true);
-    setStory("");
-    setStatus("Conectando...");
+  const act = async (event: GameEventType) => {
+    setBusy(true);
+    setStatus("Preparando una intervención breve…");
     try {
-      await api.generateStory(params, (chunk: StoryChunk) => {
-        if (chunk.error) {
-          setStatus(chunk.error);
-        }
-        setStory((prev) => prev + chunk.text);
-        setStatus(chunk.done ? "Completado" : "Generando...");
-      });
-    } catch (err) {
-      console.error(err);
-      setStatus("No se pudo generar la historia");
+      const result: NarrationResult = await api.recordGameEvent(event, detail);
+      setNarration(result.text);
+      setStatus(result.status);
+      setDetail("");
+      setGameState(await api.getGameState());
+    } catch (error) {
+      console.error(error);
+      setStatus(error instanceof Error ? error.message : "No se pudo generar la intervención");
     } finally {
-      setGenerating(false);
+      setBusy(false);
     }
   };
 
   const speak = async () => {
-    if (!story) return;
-    setStatus("Preparando narración...");
+    if (!narration) return;
+    setBusy(true);
     try {
-      const result = await api.speak(story, settings?.tts.voice);
-      if (result?.path) {
-        const audio = new Audio(result.path);
-        audio.play().catch((err) => console.error("No se pudo reproducir", err));
-        setStatus("Reproduciendo narración");
-      } else {
-        setStatus("No se pudo generar audio");
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus("Error durante la narración");
+      const result = await api.speak(narration);
+      setStatus("Reproduciendo con " + result.player);
+    } catch (error) {
+      console.error(error);
+      setStatus(error instanceof Error ? error.message : "No se pudo reproducir la voz");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const save = async () => {
-    if (!story) return;
-    try {
-      const entry = await api.createSave({
-        title: story.slice(0, 40) || "Historia",
-        content: story,
-      });
-      setStatus(`Guardado como ${entry.title}`);
-    } catch (err) {
-      console.error(err);
-      setStatus("No se pudo guardar");
-    }
-  };
-
+  const game = gameState?.active_game;
+  const stats = gameState?.stats;
   return (
-    <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Controls disabled={generating} onGenerate={handleGenerate} />
-      <Output
-        text={story}
-        isGenerating={generating}
-        onSpeak={speak}
-        onClear={() => {
-          setStory("");
-          setStatus("");
-        }}
-        onSave={save}
-        onContinue={() => handleGenerate({
-          genre: settings?.mode === "remote" ? "aventura" : "fantasía",
-          tone: "Continuación coherente",
-          keywords: [],
-          characters: [],
-          length: "medium",
-          seed: undefined,
-        })}
-        statusMessage={status}
-      />
-      {settings && (
-        <PanelSection title="Modo actual">
-          <PanelSectionRow>
-            {settings.mode === "remote"
-              ? "Usando endpoint remoto"
-              : settings.mode === "template"
-              ? "Modo plantillas (degradado)"
-              : "Modo offline"}
-          </PanelSectionRow>
-        </PanelSection>
-      )}
-    </div>
-  );
-}
-
-function PartidasTab() {
-  const [loadedStory, setLoadedStory] = useState<string>("");
-
-  return (
-    <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
-      <Saves onLoad={setLoadedStory} />
-      <PanelSection title="Vista previa">
+    <div>
+      <div className={staticClasses.Title}>NIA · narrador de juegos</div>
+      <PanelSection title="Juego activo">
         <PanelSectionRow>
-          <div style={{ whiteSpace: "pre-wrap", maxHeight: "260px", overflowY: "auto" }}>{loadedStory}</div>
+          <Focusable flow-children="down" style={{ gap: "8px", width: "100%" }}>
+            {game ? (
+              <>
+                <div style={{ fontSize: "18px", fontWeight: 600 }}>{game.title}</div>
+                <div style={{ opacity: 0.72 }}>{game.platform} · sesión {gameState?.session_minutes ?? 0} min</div>
+                <div style={{ opacity: 0.72 }}>
+                  Caídas registradas {stats?.deaths ?? 0} · checkpoints {stats?.checkpoints ?? 0} · objetivos {stats?.objectives ?? 0}
+                </div>
+              </>
+            ) : (
+              <div>{gameState?.message ?? "Buscando un juego activo…"} <Spinner /></div>
+            )}
+            <ButtonItem layout="below" disabled={busy} onClick={() => void refresh()}>Actualizar detección</ButtonItem>
+          </Focusable>
         </PanelSectionRow>
       </PanelSection>
+
+      <PanelSection title="Registrar un momento">
+        <PanelSectionRow>
+          <Focusable flow-children="down" style={{ gap: "8px", width: "100%" }}>
+            <Field label="Detalle opcional">
+              <TextField value={detail} onChange={(event) => setDetail(event.target.value)}
+                placeholder="Ej.: encontré la salida del castillo" disabled={!game || busy} />
+            </Field>
+            <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("death")}>Morí / repetí una sección</ButtonItem>
+            <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("checkpoint")}>Llegué a un checkpoint</ButtonItem>
+            <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("objective")}>Avancé / descubrí algo</ButtonItem>
+            <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("victory")}>Gané / terminé</ButtonItem>
+            <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("commentary")}>NIA, comenta la partida</ButtonItem>
+          </Focusable>
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title="Narración de NIA">
+        <PanelSectionRow>
+          <Focusable flow-children="down" style={{ gap: "8px", width: "100%" }}>
+            <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.45, padding: "8px" }}>
+              {busy ? "Generando en segundo plano…" : narration || "NIA mostrará aquí la última intervención."}
+            </div>
+            {status && <div style={{ fontSize: "12px", opacity: 0.72 }}>{status}</div>}
+            <ButtonItem layout="below" disabled={!narration || busy || !settings?.tts.enabled} onClick={() => void speak()}>
+              Reproducir última intervención
+            </ButtonItem>
+          </Focusable>
+        </PanelSectionRow>
+      </PanelSection>
+
+      <PanelSection title="Ajustes">
+        <PanelSectionRow>
+          <ButtonItem layout="below" onClick={() => setSettingsOpen((open) => !open)}>
+            {settingsOpen ? "Ocultar ajustes" : "Personalizar voz, tono y detección"}
+          </ButtonItem>
+        </PanelSectionRow>
+      </PanelSection>
+      {settingsOpen && <SettingsView settings={settings} onSettingsChange={setSettings} />}
     </div>
   );
 }
 
-function AjustesTab() {
-  const { settings, setSettings, loading } = useSettings();
-
-  return (
-    <div style={{ padding: "16px" }}>
-      {loading ? <div>Cargando...</div> : <SettingsView settings={settings} onSettingsChange={setSettings} />}
-    </div>
-  );
-}
-
-function AcercaTab() {
-  return (
-    <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-      <h2>NIA – Generador Narrativo IA</h2>
-      <p>
-        Proyecto experimental para Steam Deck. Genera relatos interactivos utilizando modelos locales o remotos y
-        narración TTS en español.
-      </p>
-      <p>
-        Guarda tus historias en <code>~/.local/share/nia-decky/saves</code> y personaliza la experiencia en la pestaña de
-        ajustes.
-      </p>
-      <p>Licencias y créditos de modelos disponibles en el README.</p>
-    </div>
-  );
-}
-
-export default definePlugin(() => {
-  return {
-    title: "NIA – Generador Narrativo IA",
-    icon: "Deck",
-    content: (
-      <Router
-        tabs={[
-          { title: "Generar", content: <GenerarTab /> },
-          { title: "Partidas", content: <PartidasTab /> },
-          { title: "Ajustes", content: <AjustesTab /> },
-          { title: "Acerca de", content: <AcercaTab /> },
-        ]}
-      />
-    ),
-    quickAccessItem: <QuickAccessTab title="NIA" icon="Deck" onClick={() => null} />,
-  };
-});
+export default definePlugin(() => ({
+  name: "NIA · Narrador de juegos",
+  titleView: <div className={staticClasses.Title}>Narrador inteligente asistido</div>,
+  content: <App />,
+  icon: <div aria-label="NIA" style={{ fontSize: "18px" }}>🎙</div>,
+}));

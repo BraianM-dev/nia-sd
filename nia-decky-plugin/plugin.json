@@ -1,14 +1,15 @@
 {
-  "name": "NIA – Generador Narrativo IA",
-  "author": "TuNombre/Org",
-  "version": "0.1.0",
-  "description": "Genera relatos interactivos en español con IA y narración TTS para Steam Deck.",
-  "tags": ["narrativa", "tts", "educación"],
+  "name": "NIA - Narrador de juegos",
+  "author": "BraianM-dev",
+  "api_version": 1,
+  "version": "0.2.0",
+  "description": "Narrador contextual configurable para juegos en SteamOS.",
+  "tags": ["narration", "games", "accessibility"],
   "image": "assets/images/logo.png",
   "flags": [],
   "publish": {
-    "tags": ["narrativa", "tts", "educación"],
-    "description": "Relatos interactivos IA con TTS en español.",
+    "tags": ["narration", "games", "accessibility"],
+    "description": "Detecta el juego activo y crea comentarios contextuales con IA local o API compatible.",
     "image": "assets/images/logo.png"
   }
 }

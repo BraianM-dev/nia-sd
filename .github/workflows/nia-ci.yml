@@ -1,0 +1,54 @@
+name: NIA Decky CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nia-decky-plugin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Install frontend dependencies
+        run: pnpm install --no-frozen-lockfile
+      - name: Build and check
+        run: |
+          pnpm build
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          python3 -m compileall -q backend main.py
+      - name: Package installable plugin
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            scripts/pack.sh "${GITHUB_REF_NAME#v}"
+          else
+            scripts/pack.sh
+          fi
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: nia-decky-${{ github.sha }}
+          path: nia-decky-plugin/out/nia-decky-latest.zip
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            nia-decky-plugin/out/nia-decky-v*.zip
+            nia-decky-plugin/out/nia-decky-latest.zip

@@ -1,10 +1,7 @@
-# Modelos descargables
+# Modelos opcionales
 
-Este directorio no almacena los modelos por defecto para mantener el repositorio liviano. Durante la instalación o la primera ejecución el plugin descargará automáticamente:
+NIA no descarga ni inicia modelos automáticamente. Para generar con IA, instala Ollama en la Steam Deck o en otra computadora de la red local, descarga allí un modelo y configura el endpoint y el nombre exacto del modelo en Ajustes.
 
-- **Modelo LLM** cuantizado (formato GGUF) de aproximadamente 3-4B parámetros en calidad Q4, optimizado para ejecución en la Steam Deck sin GPU dedicada.
-- **Modelo de voz Piper-TTS** en español (variante neutral) compatible con el binario `piper` incluido en `bin/`.
+La opción Comentario contextual sin LLM no requiere modelo ni conexión. Usa el nombre del juego, el tiempo de sesión y los eventos registrados por el jugador; no afirma conocer ubicaciones, objetivos o progreso que el juego no haya expuesto.
 
-Los archivos se guardarán en `~/.local/share/nia-decky/models/` y `~/.local/share/nia-decky/piper/` respectivamente. Consulta `defaults/config.example.json` para modificar las URL de descarga si cuentas con espejos propios.
-
-Cada descarga verifica integridad mediante checksum SHA256 y se reintenta automáticamente en caso de cortes de conexión.
+Para voz, instala Piper y una voz compatible en el sistema, activa Piper en Ajustes e indica las rutas al ejecutable y al archivo de voz ONNX. NIA no descarga ejecutables ni voces automáticamente.
