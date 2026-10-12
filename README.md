@@ -7,7 +7,7 @@ NIA es un compañero narrativo para videojuegos. La versión activa está en [`n
 - Detecta juegos activos de Steam y ejecutables en carpetas de juegos configuradas.
 - Guarda sesiones, eventos y narraciones por juego.
 - Genera comentarios breves con un motor local llama.cpp, OpenAI API, Grok, DeepSeek, Gemini, Ollama u otro endpoint compatible.
-- Permite cambiar tono y personalidad, y puede usar Piper para reproducir voz si el usuario instala sus recursos.
+- Permite cambiar tono y personalidad por juego, y puede usar una voz Piper distinta por juego.
 - Incluye respuestas contextuales locales si un LLM no está disponible.
 
 El motor local funciona en Modo Juego sin Ollama. Descarga llama.cpp y Qwen2.5 1.5B Q4_K_M desde Ajustes, verifica las sumas SHA-256, no instala paquetes del sistema y usa CPU con límites configurables. El LLM se llama al inicio opcional de sesión o cuando se registra un evento, no con una consulta constante.
@@ -18,7 +18,7 @@ No hay una interfaz común para leer el nivel, ubicación, salud o muertes inter
 
 ## Instalación y desarrollo
 
-Consulta la [guía completa del plugin](nia-decky-plugin/README.md). En `nia-decky-plugin`:
+Consulta la [guía completa del plugin](nia-decky-plugin/README.md) y el [registro de cambios](nia-decky-plugin/CHANGELOG.md). En `nia-decky-plugin`:
 
 ```bash
 pnpm install
