@@ -2,14 +2,22 @@
   "name": "NIA - Narrador de juegos",
   "author": "BraianM-dev",
   "api_version": 1,
-  "version": "0.2.0",
-  "description": "Narrador contextual configurable para juegos en SteamOS.",
-  "tags": ["narration", "games", "accessibility"],
+  "version": "0.3.0",
+  "description": "Narrador de videojuegos con llama.cpp local, proveedores API y contexto por sesión.",
+  "tags": [
+    "narration",
+    "games",
+    "accessibility"
+  ],
   "image": "assets/images/logo.png",
   "flags": [],
   "publish": {
-    "tags": ["narration", "games", "accessibility"],
-    "description": "Detecta el juego activo y crea comentarios contextuales con IA local o API compatible.",
+    "tags": [
+      "narration",
+      "games",
+      "accessibility"
+    ],
+    "description": "Narrador de videojuegos con llama.cpp local, proveedores API y contexto por sesión.",
     "image": "assets/images/logo.png"
   }
 }
