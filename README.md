@@ -1,25 +1,24 @@
-# NIA — Narrador inteligente asistido
+# NIA — narrador inteligente asistido
 
-NIA es un compañero narrativo para juegos. La versión activa está en la carpeta nia-decky-plugin y se instala como plugin de Decky Loader en Steam Deck/SteamOS.
+NIA es un compañero narrativo para videojuegos. La versión activa está en [`nia-decky-plugin`](nia-decky-plugin/) y se instala como plugin de Decky Loader en Steam Deck/SteamOS.
 
 ## Qué hace
 
-- Detecta el juego activo con consultas pasivas a procesos y manifiestos locales.
-- Guarda historial y eventos por juego en SQLite.
-- Permite registrar muertes, checkpoints, objetivos y victorias desde el panel lateral.
-- Genera comentarios breves con Ollama local, un endpoint compatible con OpenAI o un modo contextual sin LLM.
-- Ajusta personalidad y voz Piper opcional.
-- Limita las consultas a eventos, sin generación periódica ni lectura de memoria del juego.
+- Detecta juegos activos de Steam y ejecutables en carpetas de juegos configuradas.
+- Guarda sesiones, eventos y narraciones por juego.
+- Genera comentarios breves con un motor local llama.cpp, OpenAI API, Grok, DeepSeek, Gemini, Ollama u otro endpoint compatible.
+- Permite cambiar tono y personalidad, y puede usar Piper para reproducir voz si el usuario instala sus recursos.
+- Incluye respuestas contextuales locales si un LLM no está disponible.
 
-El proyecto anterior del repositorio nia es un prototipo de escritorio independiente. nia-sd contiene el plugin de Decky y es la base de desarrollo actual.
+El motor local funciona en Modo Juego sin Ollama. Descarga llama.cpp y Qwen2.5 1.5B Q4_K_M desde Ajustes, verifica las sumas SHA-256, no instala paquetes del sistema y usa CPU con límites configurables. El LLM se llama al inicio opcional de sesión o cuando se registra un evento, no con una consulta constante.
 
 ## Límites de detección
 
-Los juegos no exponen un formato común para informar nivel, ubicación, salud o muertes. La versión actual detecta el proceso y registra eventos que la persona marca desde Decky. Los datos internos y eventos automáticos requieren adaptadores específicos para cada juego.
+No hay una interfaz común para leer el nivel, ubicación, salud o muertes internas de todos los juegos. NIA registra muertes, checkpoints, objetivos y victorias desde el panel; el registro automático requiere una integración por juego o una fuente pública de datos. NIA no inyecta código ni lee memoria del juego, capturas ni entradas.
 
-## Desarrollo e instalación
+## Instalación y desarrollo
 
-Consulta la [guía del plugin](nia-decky-plugin/README.md). En el directorio nia-decky-plugin:
+Consulta la [guía completa del plugin](nia-decky-plugin/README.md). En `nia-decky-plugin`:
 
 ```bash
 pnpm install
@@ -29,8 +28,6 @@ pnpm lint
 pnpm test
 ```
 
-Los paquetes de prueba se publican como artefactos de CI y como ZIP en Releases. Decky carga dist/index.js, plugin.json y el backend Python desde el ZIP.
+La UI está escrita en TypeScript/React con las bibliotecas de Decky. El backend usa Python y SQLite. El modelo local no se incluye en el ZIP; su instalación es voluntaria y se inicia desde el panel lateral.
 
-## Diseño
-
-La interfaz está escrita en TypeScript/React con las bibliotecas oficiales de Decky. El backend usa Python y la biblioteca estándar para escaneo ligero, almacenamiento SQLite, llamadas HTTP y reproducción opcional con Piper. Los modelos no se incluyen ni se descargan automáticamente.
+`nia` es un prototipo de escritorio anterior. `nia-sd` es el repositorio de desarrollo del plugin Decky.
