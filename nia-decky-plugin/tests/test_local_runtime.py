@@ -3,6 +3,7 @@ import io
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from unittest.mock import patch
 
@@ -62,6 +63,16 @@ class LocalRuntimeTests(unittest.TestCase):
             runtime._install_task = RunningTask()
             with self.assertRaises(RuntimeError):
                 runtime.remove()
+
+    def test_install_stops_before_download_when_storage_is_too_low(self):
+        with tempfile.TemporaryDirectory() as temp:
+            runtime = LocalRuntime(Path(temp))
+            usage = type("Usage", (), {"free": 100_000_000})()
+            with patch("backend.helpers.local_runtime.platform.machine", return_value="x86_64"), \
+                    patch("backend.helpers.local_runtime.shutil.disk_usage", return_value=usage):
+                runtime._install_sync("")
+            self.assertIn("Espacio insuficiente", runtime.status()["error"])
+            self.assertFalse(runtime.status()["installing"])
 
 
 if __name__ == "__main__":
