@@ -112,4 +112,10 @@ def ensure_default_config(defaults: Dict[str, Any]) -> Dict[str, Any]:
     config = _merge(defaults, current)
     if config != current:
         atomic_write_json(path, config)
+    else:
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
     return config
+
