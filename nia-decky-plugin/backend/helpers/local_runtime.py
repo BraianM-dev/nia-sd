@@ -36,6 +36,7 @@ MODEL_SHA256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
 MODEL_MIN_BYTES = 1_000_000_000
 MODEL_MAX_BYTES = 1_300_000_000
 ARCHIVE_MAX_BYTES = 40_000_000
+ENGINE_INSTALL_HEADROOM_BYTES = 200_000_000
 
 
 class DownloadCancelled(Exception):
@@ -171,6 +172,19 @@ class LocalRuntime:
             if platform.machine().lower() not in {"x86_64", "amd64"}:
                 raise RuntimeError("El motor incluido está preparado para Steam Deck x86_64")
             self.root.mkdir(parents=True, exist_ok=True)
+            required_free = 0
+            if self._server_binary() is None:
+                required_free += ARCHIVE_MAX_BYTES + ENGINE_INSTALL_HEADROOM_BYTES
+            if not custom_model_path and self._resolve_model()[0] is None:
+                required_free += MODEL_MAX_BYTES
+            free_bytes = shutil.disk_usage(self.root).free
+            if free_bytes < required_free:
+                required_gb = required_free / 1_000_000_000
+                free_gb = free_bytes / 1_000_000_000
+                raise RuntimeError(
+                    f"Espacio insuficiente para instalar NIA: hay {free_gb:.1f} GB libres; "
+                    f"se necesitan al menos {required_gb:.1f} GB"
+                )
             if self._server_binary() is None:
                 self._set_state(progress=2, message="Descargando llama.cpp verificado…")
                 archive_part = self.root / "llama.cpp.tar.gz.part"
@@ -309,6 +323,13 @@ class LocalRuntime:
         (self.root / "llama.cpp.tar.gz.part").unlink(missing_ok=True)
         (self.root / "llama-server.log").unlink(missing_ok=True)
         self._set_state(installing=False, progress=0, error="", message="Motor local eliminado")
+        return self.status()
+
+    def cancel_install(self) -> Dict[str, Any]:
+        task = self._install_task
+        if task is not None and not task.done():
+            self._install_cancel.set()
+            self._set_state(message="Cancelando instalación; se conservarán las descargas para reanudar")
         return self.status()
 
     @staticmethod
