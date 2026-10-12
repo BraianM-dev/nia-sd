@@ -1,6 +1,6 @@
 {
   "name": "nia-decky",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Decky Loader companion that narrates the active game using low-frequency monitoring and user-marked events.",
   "type": "module",
   "scripts": {
