@@ -2,9 +2,99 @@ import {
   ButtonItem, Field, Focusable, PanelSection, PanelSectionRow, TextField, ToggleField,
 } from "@decky/ui";
 import { useEffect, useState } from "react";
-import { api, Settings } from "../lib/api";
+import { api, LocalRuntimeStatus, Provider, Settings } from "../lib/api";
 
 type Props = { settings: Settings | null; onSettingsChange: (settings: Settings) => void };
+
+const PROVIDER_PRESETS: Partial<Record<Provider, { endpoint: string; model: string }>> = {
+  "local-llama": { endpoint: "", model: "qwen2.5-1.5b-instruct-q4_k_m" },
+  ollama: { endpoint: "http://127.0.0.1:11434", model: "qwen2.5:3b" },
+  openai: { endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-5.6-terra" },
+  grok: { endpoint: "https://api.x.ai/v1/chat/completions", model: "grok-4.7" },
+  deepseek: { endpoint: "https://api.deepseek.com/chat/completions", model: "deepseek-chat" },
+  gemini: {
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    model: "gemini-3.8-flash",
+  },
+};
+
+function LocalRuntimePanel({ settings }: { settings: Settings }) {
+  const [runtime, setRuntime] = useState<LocalRuntimeStatus | null>(null);
+  const [working, setWorking] = useState(false);
+  const modelPath = settings.model.path || "";
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const result = await api.localRuntimeStatus(modelPath);
+        if (active) setRuntime(result);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 1800);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [modelPath]);
+
+  const install = async () => {
+    setWorking(true);
+    try {
+      setRuntime(await api.installLocalRuntime(modelPath));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setWorking(false);
+    }
+  };
+  const remove = async () => {
+    setWorking(true);
+    try {
+      setRuntime(await api.removeLocalRuntime());
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const installed = Boolean(runtime?.engine_installed && runtime?.model_installed);
+  const progress = Math.max(0, Math.min(100, runtime?.progress ?? 0));
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
+      <Field label="Motor local de NIA">
+        <div style={{ fontSize: "12px", opacity: 0.8 }}>
+          {runtime?.message || "Consultando instalación…"}
+          {runtime?.server_running ? " · servidor activo" : ""}
+          {runtime?.error ? " · " + runtime.error : ""}
+        </div>
+      </Field>
+      {runtime?.installing && (
+        <div style={{ width: "100%", height: "6px", background: "rgba(255,255,255,0.15)", borderRadius: "4px" }}>
+          <div style={{ width: progress + "%", height: "100%", background: "#8bc34a", borderRadius: "4px" }} />
+        </div>
+      )}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <ButtonItem disabled={working || Boolean(runtime?.installing) || installed} onClick={install}>
+          {runtime?.installing ? "Instalando…" : installed ? "Motor y modelo instalados" : "Descargar e instalar (aprox. 1,12 GB)"}
+        </ButtonItem>
+        {installed && (
+          <ButtonItem disabled={working || Boolean(runtime?.installing)} onClick={remove}>
+            Eliminar motor y modelo
+          </ButtonItem>
+        )}
+      </div>
+      <div style={{ fontSize: "12px", opacity: 0.7 }}>
+        Usa llama.cpp y Qwen 1.5B Q4_K_M. Se instala en los datos de NIA, sin root. Corre en localhost,
+        limita CPU a 2 hilos por defecto y descarga el modelo de memoria tras quedar inactivo.
+      </div>
+    </div>
+  );
+}
 
 export function SettingsView({ settings, onSettingsChange }: Props) {
   const [working, setWorking] = useState(false);
@@ -52,23 +142,48 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
         <Focusable flow-children="down" style={{ gap: "12px", width: "100%" }}>
           <Field label="Motor de narración">
             <select className="DeckySelectable" value={settings.narrator.provider}
-              onChange={(event) => updateNarrator("provider", event.target.value as Settings["narrator"]["provider"])}>
-              <option value="ollama">Ollama local (recomendado)</option>
-              <option value="openai-compatible">API compatible con OpenAI</option>
+              onChange={(event) => {
+                const provider = event.target.value as Provider;
+                const preset = PROVIDER_PRESETS[provider];
+                if (!preset) {
+                  updateNarrator("provider", provider);
+                  return;
+                }
+                onSettingsChange({
+                  ...settings,
+                  narrator: { ...settings.narrator, provider, endpoint: preset.endpoint, model: preset.model },
+                });
+              }}>
+              <option value="local-llama">NIA local · llama.cpp (recomendado)</option>
+              <option value="ollama">Ollama en este equipo o en otro equipo</option>
+              <option value="openai">OpenAI API</option>
+              <option value="grok">xAI Grok API</option>
+              <option value="deepseek">DeepSeek API</option>
+              <option value="gemini">Google Gemini API</option>
+              <option value="openai-compatible">Otro endpoint compatible</option>
               <option value="template">Comentario contextual sin LLM</option>
             </select>
           </Field>
-          <TextField label="Endpoint"
-            description="Ollama: http://127.0.0.1:11434 · API compatible: URL completa de chat/completions"
-            value={settings.narrator.endpoint}
-            onChange={(event) => updateNarrator("endpoint", event.target.value)} />
-          <TextField label="Modelo" description="Debe estar disponible en el servidor configurado"
-            value={settings.narrator.model}
-            onChange={(event) => updateNarrator("model", event.target.value)} />
-          {settings.narrator.provider === "openai-compatible" && (
-            <TextField label="API key (guardada localmente)" value={settings.narrator.api_key}
-              onChange={(event) => updateNarrator("api_key", event.target.value)} />
+          {settings.narrator.provider !== "local-llama" && settings.narrator.provider !== "template" && (
+            <TextField label="Endpoint"
+              description="Usa la dirección del proveedor seleccionado; solo cámbiala si necesitas un proxy."
+              value={settings.narrator.endpoint}
+              onChange={(event) => updateNarrator("endpoint", event.target.value)} />
           )}
+          {settings.narrator.provider !== "local-llama" && settings.narrator.provider !== "template" && (
+            <TextField label="Modelo" description="Nombre de modelo aceptado por el proveedor; puedes cambiarlo."
+              value={settings.narrator.model}
+              onChange={(event) => updateNarrator("model", event.target.value)} />
+          )}
+          {["openai", "grok", "deepseek", "gemini", "openai-compatible"].includes(settings.narrator.provider) && (
+            <Field label="Clave API (guardada localmente)"
+              description="NIA la envía solo al proveedor seleccionado. Las API se facturan por separado de suscripciones de chat.">
+              <input type="password" autoComplete="off" value={settings.narrator.api_key}
+                onChange={(event) => updateNarrator("api_key", event.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", padding: "8px", color: "inherit", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "3px" }} />
+            </Field>
+          )}
+          {settings.narrator.provider === "local-llama" && <LocalRuntimePanel settings={settings} />}
           <Field label="Personalidad de NIA">
             <select className="DeckySelectable" value={settings.narrator.persona}
               onChange={(event) => updateNarrator("persona", event.target.value as Settings["narrator"]["persona"])}>
@@ -78,7 +193,8 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
               <option value="epico">Épica</option>
             </select>
           </Field>
-          <TextField label="Tiempo máximo de respuesta (segundos)" value={String(settings.narrator.timeout)}
+          <TextField label="Tiempo máximo de respuesta (segundos, APIs remotas)"
+            value={String(settings.narrator.timeout)}
             onChange={(event) => updateNarrator("timeout", Number.parseInt(event.target.value, 10) || 8)} />
           <TextField label="Máximo de tokens por intervención" value={String(settings.narrator.max_tokens)}
             onChange={(event) => updateNarrator("max_tokens", Number.parseInt(event.target.value, 10) || 96)} />
@@ -86,6 +202,31 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
             onChange={(value) => updateNarrator("auto_on_start", value)} />
           <ToggleField label="Reproducir automáticamente (requiere voz)" checked={settings.narrator.auto_speak}
             onChange={(value) => updateNarrator("auto_speak", value)} />
+          {settings.narrator.provider === "local-llama" && (
+            <>
+              <TextField label="Hilos de CPU para el modelo (1–4)"
+                value={String(settings.local_runtime.threads)}
+                onChange={(event) => onSettingsChange({
+                  ...settings, local_runtime: { ...settings.local_runtime, threads: Number.parseInt(event.target.value, 10) || 2 },
+                })} />
+              <TextField label="Contexto del modelo (1024–4096 tokens)"
+                value={String(settings.local_runtime.context_size)}
+                onChange={(event) => onSettingsChange({
+                  ...settings, local_runtime: { ...settings.local_runtime, context_size: Number.parseInt(event.target.value, 10) || 2048 },
+                })} />
+              <TextField label="Segundos inactivo antes de descargar el modelo de RAM"
+                value={String(settings.local_runtime.idle_sleep_seconds)}
+                onChange={(event) => onSettingsChange({
+                  ...settings, local_runtime: { ...settings.local_runtime, idle_sleep_seconds: Number.parseInt(event.target.value, 10) || 90 },
+                })} />
+              <TextField label="Ruta a otro modelo GGUF (opcional)"
+                description="Vacía usa el Qwen incluido. Si indicas otra ruta, NIA no descargará el modelo recomendado."
+                value={settings.model.path}
+                onChange={(event) => onSettingsChange({
+                  ...settings, model: { ...settings.model, path: event.target.value },
+                })} />
+            </>
+          )}
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", width: "100%" }} />
           <ToggleField label="Detectar el juego activo" checked={settings.game_detection.enabled}
             onChange={(value) => updateDetection("enabled", value)} />
