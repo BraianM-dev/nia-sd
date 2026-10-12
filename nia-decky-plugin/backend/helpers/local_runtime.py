@@ -250,7 +250,7 @@ class LocalRuntime:
         elif offset >= min_bytes and offset and sha256_file(partial_path).lower() == expected_sha256.lower():
             self._set_state(progress=progress_end, message=label + " descargado y verificado")
             return
-        headers = {"User-Agent": "NIA-Decky/0.4", "Accept-Encoding": "identity"}
+        headers = {"User-Agent": "NIA-Decky/0.3", "Accept-Encoding": "identity"}
         if offset:
             headers["Range"] = "bytes=" + str(offset) + "-"
         request = Request(url, headers=headers)
@@ -349,7 +349,11 @@ class LocalRuntime:
                 raise RuntimeError("Falta llama-server; instala el motor local desde Ajustes de NIA")
             if self._process is None or self._process.poll() is not None:
                 self._start_server(binary, model_path, settings)
-            self._wait_until_ready()
+            try:
+                self._wait_until_ready()
+            except Exception:
+                self.stop_server()
+                raise
             return self._endpoint + "/v1/chat/completions", self._api_key
 
     def _start_server(self, binary: Path, model_path: Path, settings: Dict[str, Any]) -> None:
@@ -397,7 +401,7 @@ class LocalRuntime:
             if process.poll() is not None:
                 raise RuntimeError("llama-server terminó durante el arranque; revisa el espacio libre y el modelo")
             try:
-                with urlopen(Request(health_url, headers={"User-Agent": "NIA-Decky/0.4"}), timeout=2) as response:
+                with urlopen(Request(health_url, headers={"User-Agent": "NIA-Decky/0.3"}), timeout=2) as response:
                     if int(response.status) == 200:
                         return
             except Exception:
