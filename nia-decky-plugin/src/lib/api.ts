@@ -9,6 +9,7 @@ export interface NarratorSettings {
   timeout: number; max_tokens: number; temperature: number; persona: Persona;
   auto_on_start: boolean; auto_speak: boolean;
 }
+export interface GameProfile { persona?: Persona; voice_model?: string }
 export interface Settings {
   mode: "offline" | "remote" | "template";
   model: { gguf_url: string; path: string; checksum?: string; ctx: number; temperature: number; top_p: number };
@@ -17,6 +18,7 @@ export interface Settings {
   narrator: NarratorSettings;
   game_detection: { enabled: boolean; scan_interval_seconds: number; roots: string[] };
   local_runtime: { threads: number; context_size: number; idle_sleep_seconds: number };
+  game_profiles: Record<string, GameProfile>;
   status?: string;
 }
 export interface GameInfo { id: string; appid?: string; title: string; platform: string; install_path?: string; process_name?: string }
@@ -57,6 +59,7 @@ const verifyResources = callable<[], { status: string; details: string[] }>("ver
 const localRuntimeStatus = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_status");
 const localRuntimeInstall = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_install");
 const localRuntimeRemove = callable<[], LocalRuntimeStatus>("local_runtime_remove");
+const localRuntimeCancel = callable<[], LocalRuntimeStatus>("local_runtime_cancel");
 
 export const api = {
   getSettings: () => settingsGet(),
@@ -78,4 +81,5 @@ export const api = {
   localRuntimeStatus: (modelPath = "") => localRuntimeStatus(modelPath),
   installLocalRuntime: (modelPath = "") => localRuntimeInstall(modelPath),
   removeLocalRuntime: () => localRuntimeRemove(),
+  cancelLocalRuntimeInstall: () => localRuntimeCancel(),
 };
