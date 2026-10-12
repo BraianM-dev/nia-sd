@@ -36,9 +36,9 @@ jobs:
       - name: Package installable plugin
         run: |
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            scripts/pack.sh "${GITHUB_REF_NAME#v}"
+            bash scripts/pack.sh "${GITHUB_REF_NAME#v}"
           else
-            scripts/pack.sh
+            bash scripts/pack.sh
           fi
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
