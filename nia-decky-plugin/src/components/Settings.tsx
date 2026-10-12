@@ -11,7 +11,7 @@ const PROVIDER_PRESETS: Partial<Record<Provider, { endpoint: string; model: stri
   ollama: { endpoint: "http://127.0.0.1:11434", model: "qwen2.5:3b" },
   openai: { endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-5.6-terra" },
   grok: { endpoint: "https://api.x.ai/v1/chat/completions", model: "grok-4.7" },
-  deepseek: { endpoint: "https://api.deepseek.com/chat/completions", model: "deepseek-chat" },
+  deepseek: { endpoint: "https://api.deepseek.com/chat/completions", model: "deepseek-v4-flash" },
   gemini: {
     endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     model: "gemini-3.8-flash",
@@ -145,14 +145,12 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
               onChange={(event) => {
                 const provider = event.target.value as Provider;
                 const preset = PROVIDER_PRESETS[provider];
-                if (!preset) {
-                  updateNarrator("provider", provider);
-                  return;
+                const nextNarrator = { ...settings.narrator, provider, api_key: "" };
+                if (preset) {
+                  nextNarrator.endpoint = preset.endpoint;
+                  nextNarrator.model = preset.model;
                 }
-                onSettingsChange({
-                  ...settings,
-                  narrator: { ...settings.narrator, provider, endpoint: preset.endpoint, model: preset.model },
-                });
+                onSettingsChange({ ...settings, narrator: nextNarrator });
               }}>
               <option value="local-llama">NIA local · llama.cpp (recomendado)</option>
               <option value="ollama">Ollama en este equipo o en otro equipo</option>
@@ -177,7 +175,7 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
           )}
           {["openai", "grok", "deepseek", "gemini", "openai-compatible"].includes(settings.narrator.provider) && (
             <Field label="Clave API (guardada localmente)"
-              description="NIA la envía solo al proveedor seleccionado. Las API se facturan por separado de suscripciones de chat.">
+              description="NIA la envía solo al proveedor seleccionado y la borra al cambiar de proveedor. Las API se facturan por separado de suscripciones de chat.">
               <input type="password" autoComplete="off" value={settings.narrator.api_key}
                 onChange={(event) => updateNarrator("api_key", event.target.value)}
                 style={{ width: "100%", boxSizing: "border-box", padding: "8px", color: "inherit", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "3px" }} />
