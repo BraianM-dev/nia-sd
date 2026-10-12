@@ -233,21 +233,29 @@ class Plugin:
 
     async def verify_resources(self) -> Dict[str, Any]:
         details: List[str] = []
+        ok = self.narrator is not None
         if self.narrator:
             probe = await self.narrator.probe()
             details.append(str(probe["message"]))
+            ok = bool(probe.get("ok"))
+        else:
+            details.append("El narrador no se inicializó")
         if self.settings.get("narrator", {}).get("provider") == "local-llama" and self.local_runtime:
             runtime = self.local_runtime.status(str(self.settings.get("model", {}).get("path", "")))
             if not runtime["engine_installed"] or not runtime["model_installed"]:
                 details.append("Falta instalar el motor/modelo local desde este panel")
+                ok = False
         tts_config = self.settings.get("tts", {})
         if not tts_config.get("enabled"):
             details.append("Voz desactivada")
         elif not tts_config.get("voice_model"):
             details.append("Falta seleccionar el modelo Piper")
+            ok = False
+        elif not Path(os.path.expanduser(str(tts_config.get("voice_model")))).is_file():
+            details.append("No se encontró el archivo de voz Piper configurado")
+            ok = False
         else:
             details.append("La voz se validará al reproducir")
-        ok = bool(details) and (not details[0].startswith("No se pudo"))
         return {"status": "ok" if ok else "degraded", "details": details}
 
     async def local_runtime_status(self, model_path: str = "") -> Dict[str, Any]:
