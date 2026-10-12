@@ -1,4 +1,5 @@
 import json
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,6 +30,19 @@ class SettingsTests(unittest.TestCase):
         plugin._migrate_local_ollama_default()
         self.assertEqual(plugin.settings["narrator"]["provider"], "ollama")
         self.assertEqual(plugin.settings["narrator"]["endpoint"], "http://192.168.1.20:11434")
+
+    def test_resource_check_reports_an_unavailable_provider_as_degraded(self):
+        class UnavailableNarrator:
+            @staticmethod
+            async def probe():
+                return {"ok": False, "message": "Falta la clave API"}
+
+        plugin = Plugin()
+        plugin.settings = {"narrator": {"provider": "openai"}, "tts": {"enabled": False}}
+        plugin.narrator = UnavailableNarrator()
+        result = asyncio.run(plugin.verify_resources())
+        self.assertEqual(result["status"], "degraded")
+        self.assertIn("Falta la clave API", result["details"][0])
 
 
 if __name__ == "__main__":
