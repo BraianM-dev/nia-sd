@@ -1,4 +1,4 @@
-import { ButtonItem, ConfirmModal, Focusable, PanelSection, PanelSectionRow, QuickAccessTab, showModal } from "decky";
+import { ButtonItem, ConfirmModal, Focusable, PanelSection, PanelSectionRow, showModal } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { api, SaveEntry } from "../lib/api";
 import { readableSize } from "../lib/validate";
@@ -65,12 +65,7 @@ export function Saves({ onLoad }: Props) {
     <PanelSection title="Partidas guardadas">
       <PanelSectionRow>
         <Focusable flow-children="down" style={{ gap: "8px", width: "100%" }}>
-          <QuickAccessTab
-            title="Actualizar"
-            onClick={refresh}
-            icon="steamdeck"
-            buttonClassName="DeckyButton"
-          />
+          <ButtonItem onClick={refresh}>Actualizar</ButtonItem>
           {loading && <div>Cargando...</div>}
           {error && <div style={{ color: "var(--color-error)" }}>{error}</div>}
           {saves.length === 0 && !loading && <div>No hay partidas guardadas.</div>}

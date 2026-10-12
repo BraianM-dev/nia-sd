@@ -1,80 +1,70 @@
-# NIA – Generador Narrativo IA
+# NIA Decky 0.4.0 — narrador de videojuegos
 
-Plugin para [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) que permite crear relatos interactivos en español utilizando modelos de lenguaje locales o un endpoint remoto opcional, además de narrar las historias mediante Piper-TTS.
+NIA es un plugin para Decky Loader en Steam Deck/SteamOS. Detecta el juego activo, guarda el contexto de cada sesión y crea comentarios breves con un modelo local, un proveedor de API o un narrador contextual que no usa LLM.
 
-## Características
+## Motor local recomendado
 
-- Generación de historias guiada por género, tono, palabras clave y personajes.
-- Soporte para modo offline mediante `llama.cpp` y modelos GGUF ligeros.
-- Cliente para endpoints remotos personalizables.
-- Narración con Piper-TTS en español.
-- Gestión de partidas guardadas y reanudación del progreso.
-- Descarga automática de modelos y voces en la primera ejecución.
+NIA incluye un instalador opcional para llama.cpp y Qwen2.5 1.5B Instruct Q4_K_M. No depende de Ollama ni de que Ollama siga ejecutándose al entrar en Modo Juego. En Ajustes → Motor de narración, elige **NIA local · llama.cpp** y pulsa **Descargar e instalar**.
 
-## Instalación
+- Descarga el motor CPU de llama.cpp y un modelo GGUF de aproximadamente 1,12 GB solo después de pulsar el botón.
+- Comprueba las sumas SHA-256 publicadas por los proyectos upstream antes de instalar ambos archivos.
+- Instala los recursos en el directorio de datos de NIA, sin `sudo`, paquetes del sistema ni cambios a SteamOS.
+- Ejecuta llama-server solo cuando NIA necesita narrar, enlazado a `127.0.0.1` y protegido con una clave aleatoria.
+- Por defecto limita la inferencia a 2 hilos, contexto de 2048 tokens y prioridad baja. llama.cpp descarga los pesos de la RAM tras 90 segundos sin uso.
+- Comprueba el espacio libre antes de descargar. Una descarga se puede cancelar y reanudar; también se puede indicar una ruta a otro GGUF compatible.
 
-1. Copia el repositorio a tu Steam Deck o descarga el paquete ZIP generado por CI.
-2. Ejecuta el instalador:
+La inferencia local usa CPU y puede tardar más que una API remota; consume CPU mientras genera. Los límites reducen el impacto, pero no garantizan cero cambios en FPS. NIA no genera narraciones en segundo plano de forma periódica: consulta al modelo cuando se inicia un juego (si esa opción está activada) o cuando se registra un evento.
 
-   ```bash
-   bash installer.sh
-   ```
+## Proveedores de IA
 
-   El script detectará Steam Deck/Decky Loader, descargará los artefactos necesarios y desplegará el plugin en `~/homebrew/plugins/nia-decky`.
+Desde Ajustes se puede elegir:
 
-3. Abre el menú de Decky Loader y activa "NIA – Generador Narrativo IA".
+| Proveedor | Endpoint preconfigurado | Modelo inicial editable |
+| --- | --- | --- |
+| NIA local | llama.cpp incluido | Qwen2.5 1.5B Q4_K_M |
+| Ollama | Local o en otra máquina | `qwen2.5:3b` |
+| OpenAI API | Chat Completions | `gpt-6-luna` |
+| xAI Grok API | Chat Completions | `grok-4.7` |
+| DeepSeek API | Chat Completions | `deepseek-v4-flash` |
+| Google Gemini API | Compatibilidad OpenAI | `gemini-3.8-flash` |
+| Compatible con OpenAI | Endpoint configurable | Modelo configurable |
+| Contextual sin LLM | Sin endpoint | Sin modelo |
 
-### Parámetros del instalador
+Cada proveedor remoto requiere una clave API del servicio elegido. La clave se guarda en la configuración local con permisos de usuario y se borra del formulario al cambiar de proveedor para evitar mandarla por error al siguiente. El contenido narrado y el contexto de partida se envían al proveedor seleccionado. El uso de OpenAI API se factura aparte de ChatGPT Plus/Pro; lo mismo aplica a las API de otros proveedores y sus planes de chat.
 
-```
-bash installer.sh [--zip URL_O_RUTA] [--force]
-```
+Los endpoints y modelos se pueden editar. Si el proveedor cambia su catálogo, se puede elegir otro modelo compatible sin actualizar NIA. Para usar Ollama de una computadora distinta, escribe su dirección de red; una configuración previa de Ollama en `localhost` se migra al motor local incluido.
 
-- `--zip`: permite especificar una URL o ruta local del paquete ZIP del plugin.
-- `--force`: fuerza la reinstalación incluso si ya existe una copia.
+## Perfiles por juego\n\nDesde el panel lateral se puede guardar una personalidad y una voz Piper `.onnx` por juego activo. Los campos vacíos heredan el ajuste predeterminado. El perfil se guarda localmente con el resto de la configuración.\n\n## Partidas, progreso y detección
 
-## Archivos y datos
+NIA detecta procesos de juegos y manifiestos locales de Steam. Puede buscar ejecutables en carpetas que agregues, por ejemplo bibliotecas usadas por Heroic, GOG, Epic o Lutris. No necesita que el juego se ejecute mediante una sola tienda para poder aparecer en el catálogo, aunque cada launcher guarda sus instalaciones de forma distinta.
 
-- Configuración: `~/.local/share/nia-decky/config.json`
-- Modelos LLM: `~/.local/share/nia-decky/models/`
-- Voces Piper: `~/.local/share/nia-decky/piper/`
-- Partidas guardadas: `~/.local/share/nia-decky/saves/`
-- Logs: `~/.local/share/nia-decky/logs/nia.log`
-- El icono `assets/images/logo.png` se genera automáticamente a partir de `assets/images/logo.base64` durante el empaquetado o la instalación para evitar almacenar binarios en el repositorio.
+El plugin registra sesiones, muertes, checkpoints, objetivos y victorias en SQLite. Los eventos se marcan desde el panel. No existe una API universal que permita a Decky conocer el nivel, la ubicación, la vida o las muertes internas de cada juego; para automatizar esos datos hacen falta adaptadores específicos por juego o datos públicos de una API/achievement. NIA no inyecta código, no lee memoria del proceso, capturas, teclado ni mouse.
 
-## Endpoint remoto
+Las narraciones recientes se pasan como contexto para reducir repeticiones. Si no hay conexión, una clave, un modelo instalado o el servidor falla, NIA sigue respondiendo con frases contextuales locales.
 
-En la pestaña **Ajustes** puedes habilitar el modo remoto, indicando la URL y token de autorización. El endpoint debe aceptar peticiones `POST` con cuerpo JSON:
+## Voz opcional
 
-```json
-{
-  "prompt": "<texto>",
-  "stream": true
-}
-```
+Se puede activar Piper y configurar una voz desde el panel. La instalación de Piper y la descarga de su voz se hacen manualmente: se necesita un binario Piper ejecutable, un modelo `.onnx` y un reproductor disponible en SteamOS (`pw-play`, `paplay` o `aplay`). Sin esos recursos, NIA sigue mostrando texto y no intenta reproducir audio.
 
-Y responder con fragmentos JSON que contengan `token` o `text` y opcionalmente `done`.
+## Instalación como plugin Decky
 
-## Desinstalación
+1. Instala Decky Loader en SteamOS.
+2. Descarga `nia-decky-latest.zip` de Releases o usa el artefacto ZIP generado por CI.
+3. En modo Escritorio, abre Decky Settings → Developer → Install plugin from ZIP file y selecciona el ZIP.
+4. En el panel lateral, abre Ajustes, elige el motor y la personalidad y, para narrar con LLM local, pulsa **Descargar e instalar**.
 
-```
-bash uninstall.sh [--purge]
-```
-
-El parámetro `--purge` elimina también los datos descargados.
-
-## Licencias y modelos
-
-- Los binarios de `llama.cpp` y Piper se descargan dinámicamente desde sus proyectos oficiales (ver `bin/`). Consulta las licencias respectivas antes de distribuir.
-- Los modelos y voces provienen de terceros; ajusta las URL en `defaults/config.example.json` según tus fuentes confiables.
+Los archivos del modelo no se incluyen en el ZIP. Se descargan dentro de los datos de NIA solo cuando el usuario lo decide. La configuración, los datos, la base de datos y los logs quedan bajo `~/.local/share/nia-decky/` (o `$XDG_DATA_HOME/nia-decky/`). La clave API se escribe con permisos `0600`.
 
 ## Desarrollo
 
-- Instala dependencias con `pnpm install`.
-- Ejecuta `pnpm build` para generar `dist/index.js`.
-- `pnpm lint` y `pnpm typecheck` validan calidad y tipos.
-- `pnpm pack` produce un ZIP listo para instalar.
+Desde esta carpeta:
 
-## Créditos
+```bash
+pnpm install
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+```
 
-Creado por TuNombre/Org. Basado en Decky Loader y herramientas de código abierto.
+La interfaz usa TypeScript/React con `@decky/ui` y `@decky/api`; Decky ejecuta el backend Python. `scripts/pack.sh` crea el ZIP instalable de Decky.

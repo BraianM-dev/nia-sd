@@ -1,4 +1,4 @@
-import { ButtonItem, Field, Focusable, FormDivider, TextField } from "decky";
+import { ButtonItem, Field, Focusable, TextField } from "@decky/ui";
 import { useState } from "react";
 import { StoryParams } from "../lib/api";
 import { clampSeed, getGenres, sanitizeList, validateStoryParams } from "../lib/validate";
@@ -42,7 +42,6 @@ export function Controls({ disabled, onGenerate }: Props) {
       <Field
         label="Género"
         description="Selecciona el estilo base de la historia"
-        childrenContainerWidth="full"
       >
         <div className="decky-select">
           <select
@@ -102,7 +101,7 @@ export function Controls({ disabled, onGenerate }: Props) {
         disabled={disabled}
       />
       {error && <div style={{ color: "var(--color-error)", fontSize: "14px" }}>{error}</div>}
-      <FormDivider />
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", width: "100%" }} />
       <ButtonItem disabled={disabled} layout="below" onClick={submit}>
         {disabled ? "Generando..." : "Generar"}
       </ButtonItem>

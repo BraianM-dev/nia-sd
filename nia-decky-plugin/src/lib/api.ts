@@ -1,102 +1,85 @@
-import { serverAPI } from "decky";
+import { callable } from "@decky/api";
 
-type PluginMethod =
-  | "settings_get"
-  | "settings_set"
-  | "story_generate"
-  | "save_list"
-  | "save_load"
-  | "save_delete"
-  | "save_create"
-  | "tts_speak"
-  | "verify_resources";
+export type Provider = "local-llama" | "ollama" | "openai" | "grok" | "deepseek" | "gemini" | "openai-compatible" | "template";
+export type Persona = "amable" | "sarcastico" | "grosero" | "epico";
+export type GameEventType = "death" | "checkpoint" | "objective" | "victory" | "commentary";
 
-export interface StoryParams {
-  genre: string;
-  tone: string;
-  keywords: string[];
-  characters: string[];
-  length: "short" | "medium" | "long";
-  seed?: number;
+export interface NarratorSettings {
+  provider: Provider; endpoint: string; model: string; api_key: string;
+  timeout: number; max_tokens: number; temperature: number; persona: Persona;
+  auto_on_start: boolean; auto_speak: boolean;
 }
-
-export interface StoryChunk {
-  done: boolean;
-  text: string;
-  error?: string;
-}
-
-export interface SaveEntry {
-  id: string;
-  title: string;
-  created_at: string;
-  updated_at: string;
-  size: number;
-}
-
+export interface GameProfile { persona?: Persona; voice_model?: string }
 export interface Settings {
   mode: "offline" | "remote" | "template";
-  model: {
-    gguf_url: string;
-    path: string;
-    checksum?: string;
-    ctx: number;
-    temperature: number;
-    top_p: number;
-  };
-  tts: {
-    voice_url: string;
-    path: string;
-    checksum?: string;
-    voice?: string;
-    speed?: number;
-  };
-  remote: {
-    enabled: boolean;
-    endpoint: string;
-    auth: string;
-    timeout?: number;
-  };
+  model: { gguf_url: string; path: string; checksum?: string; ctx: number; temperature: number; top_p: number };
+  tts: { enabled: boolean; piper_binary: string; voice_model: string; path: string; voice_url: string; checksum?: string; voice?: string; speed: number };
+  remote: { enabled: boolean; endpoint: string; auth: string; timeout?: number };
+  narrator: NarratorSettings;
+  game_detection: { enabled: boolean; scan_interval_seconds: number; roots: string[] };
+  local_runtime: { threads: number; context_size: number; idle_sleep_seconds: number };
+  game_profiles: Record<string, GameProfile>;
   status?: string;
 }
-
-async function callPlugin<T>(method: PluginMethod, args?: Record<string, unknown>): Promise<T> {
-  const response = await serverAPI.callPluginMethod<T>(method, args ?? {});
-  if (!response.success) {
-    throw new Error(response.result as unknown as string ?? "Plugin call failed");
-  }
-  return response.result as T;
+export interface GameInfo { id: string; appid?: string; title: string; platform: string; install_path?: string; process_name?: string }
+export interface GameState {
+  active_game: GameInfo | null;
+  stats?: { deaths: number; checkpoints: number; objectives: number; victories: number; sessions: number };
+  session_minutes?: number;
+  latest_narration?: { event_type: string; text: string; created_at: number } | null;
+  message?: string;
+  scanned_at: number;
 }
+export interface NarrationResult { text: string; status: string; game_id?: string; event_type?: string; source?: string }
+export interface LocalRuntimeStatus {
+  installing: boolean; progress: number; message: string; error: string; engine_installed: boolean;
+  model_installed: boolean; model_source: string; model_size_bytes: number; server_running: boolean;
+  runtime_version: string; recommended_model: string;
+}
+export interface StoryParams {
+  genre: string; tone: string; keywords: string[]; characters: string[];
+  length: "short" | "medium" | "long"; seed?: number;
+}
+export interface StoryChunk { done: boolean; text: string; error?: string }
+export interface SaveEntry { id: string; title: string; created_at: string; updated_at: string; size: number }
+
+const settingsGet = callable<[], Settings>("settings_get");
+const settingsSet = callable<[settings: Settings], Settings>("settings_set");
+const gamesList = callable<[], GameInfo[]>("list_games");
+const gameState = callable<[], GameState>("game_state");
+const gameEvent = callable<[eventType: GameEventType, detail: string], NarrationResult>("game_event");
+const generateCommentary = callable<[], NarrationResult>("narrator_generate");
+const storyGenerate = callable<[params: StoryParams], StoryChunk[]>("story_generate");
+const saveList = callable<[], SaveEntry[]>("save_list");
+const saveLoad = callable<[id: string], { content: string; metadata: SaveEntry } | null>("save_load");
+const saveDelete = callable<[id: string], boolean>("save_delete");
+const saveCreate = callable<[title: string, content: string, metadata?: Record<string, unknown>], SaveEntry>("save_create");
+const speak = callable<[text: string, voice?: string], { playing: boolean; player: string }>("tts_speak");
+const verifyResources = callable<[], { status: string; details: string[] }>("verify_resources");
+const localRuntimeStatus = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_status");
+const localRuntimeInstall = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_install");
+const localRuntimeRemove = callable<[], LocalRuntimeStatus>("local_runtime_remove");
+const localRuntimeCancel = callable<[], LocalRuntimeStatus>("local_runtime_cancel");
 
 export const api = {
-  async getSettings(): Promise<Settings> {
-    return await callPlugin<Settings>("settings_get");
-  },
-  async setSettings(settings: Settings): Promise<Settings> {
-    return await callPlugin<Settings>("settings_set", { settings });
-  },
+  getSettings: () => settingsGet(),
+  setSettings: (settings: Settings) => settingsSet(settings),
+  listGames: () => gamesList(),
+  getGameState: () => gameState(),
+  recordGameEvent: (eventType: GameEventType, detail = "") => gameEvent(eventType, detail),
+  generateCommentary: () => generateCommentary(),
   async generateStory(params: StoryParams, onChunk: (chunk: StoryChunk) => void): Promise<void> {
-    const iterator = await callPlugin<StoryChunk[]>("story_generate", { params });
-    for (const chunk of iterator) {
-      onChunk(chunk);
-    }
+    for (const chunk of await storyGenerate(params)) onChunk(chunk);
   },
-  async listSaves(): Promise<SaveEntry[]> {
-    return await callPlugin<SaveEntry[]>("save_list");
-  },
-  async loadSave(id: string): Promise<{ content: string; metadata: SaveEntry } | null> {
-    return await callPlugin<{ content: string; metadata: SaveEntry } | null>("save_load", { id });
-  },
-  async deleteSave(id: string): Promise<boolean> {
-    return await callPlugin<boolean>("save_delete", { id });
-  },
-  async createSave(payload: { title: string; content: string; metadata?: Record<string, unknown> }): Promise<SaveEntry> {
-    return await callPlugin<SaveEntry>("save_create", payload);
-  },
-  async speak(text: string, voice?: string): Promise<{ path: string } | null> {
-    return await callPlugin<{ path: string } | null>("tts_speak", { text, voice });
-  },
-  async verifyResources(): Promise<{ status: string; details: string[] }> {
-    return await callPlugin<{ status: string; details: string[] }>("verify_resources");
-  },
+  listSaves: () => saveList(),
+  loadSave: (id: string) => saveLoad(id),
+  deleteSave: (id: string) => saveDelete(id),
+  createSave: (payload: { title: string; content: string; metadata?: Record<string, unknown> }) =>
+    saveCreate(payload.title, payload.content, payload.metadata),
+  speak: (text: string, voice?: string) => speak(text, voice),
+  verifyResources: () => verifyResources(),
+  localRuntimeStatus: (modelPath = "") => localRuntimeStatus(modelPath),
+  installLocalRuntime: (modelPath = "") => localRuntimeInstall(modelPath),
+  removeLocalRuntime: () => localRuntimeRemove(),
+  cancelLocalRuntimeInstall: () => localRuntimeCancel(),
 };

@@ -1,0 +1,76 @@
+name: NIA Decky CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: nia-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nia-decky-plugin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Audit dependencies
+        run: pnpm audit --audit-level=high
+      - name: Build and check
+        run: |
+          pnpm build
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          python3 -m compileall -q backend main.py
+      - name: Package installable plugin
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            bash scripts/pack.sh "${GITHUB_REF_NAME#v}"
+          else
+            bash scripts/pack.sh
+          fi
+          unzip -t out/nia-decky-latest.zip
+          unzip -l out/nia-decky-latest.zip
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: nia-decky-${{ github.sha }}
+          path: |
+            nia-decky-plugin/out/nia-decky-v*.zip
+            nia-decky-plugin/out/nia-decky-latest.zip
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated plugin ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: nia-decky-${{ github.sha }}
+      - name: Publish tagged release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            nia-decky-v*.zip
+            nia-decky-latest.zip
+          generate_release_notes: true
