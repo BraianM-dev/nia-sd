@@ -14,13 +14,14 @@
     "@decky/ui": "^4.11.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
-    "@typescript-eslint/eslint-plugin": "6.21.0",
-    "@typescript-eslint/parser": "6.21.0",
-    "esbuild": "0.21.5",
-    "eslint": "8.57.0",
-    "eslint-plugin-react": "^7.34.1",
+    "@typescript-eslint/eslint-plugin": "8.71.1",
+    "@typescript-eslint/parser": "8.71.1",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "globals": "^17.13.0",
     "typescript": "5.4.5"
   }
 }
