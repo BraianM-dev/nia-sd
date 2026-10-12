@@ -250,7 +250,7 @@ class LocalRuntime:
         elif offset >= min_bytes and offset and sha256_file(partial_path).lower() == expected_sha256.lower():
             self._set_state(progress=progress_end, message=label + " descargado y verificado")
             return
-        headers = {"User-Agent": "NIA-Decky/0.3", "Accept-Encoding": "identity"}
+        headers = {"User-Agent": "NIA-Decky/0.4", "Accept-Encoding": "identity"}
         if offset:
             headers["Range"] = "bytes=" + str(offset) + "-"
         request = Request(url, headers=headers)
@@ -397,7 +397,7 @@ class LocalRuntime:
             if process.poll() is not None:
                 raise RuntimeError("llama-server terminó durante el arranque; revisa el espacio libre y el modelo")
             try:
-                with urlopen(Request(health_url, headers={"User-Agent": "NIA-Decky/0.3"}), timeout=2) as response:
+                with urlopen(Request(health_url, headers={"User-Agent": "NIA-Decky/0.4"}), timeout=2) as response:
                     if int(response.status) == 200:
                         return
             except Exception:
