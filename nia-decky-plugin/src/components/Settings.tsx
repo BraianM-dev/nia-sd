@@ -1,5 +1,5 @@
 import {
-  ButtonItem, Field, Focusable, FormDivider, PanelSection, PanelSectionRow, TextField, ToggleField,
+  ButtonItem, Field, Focusable, PanelSection, PanelSectionRow, TextField, ToggleField,
 } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { api, Settings } from "../lib/api";
@@ -86,7 +86,7 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
             onChange={(value) => updateNarrator("auto_on_start", value)} />
           <ToggleField label="Reproducir automáticamente (requiere voz)" checked={settings.narrator.auto_speak}
             onChange={(value) => updateNarrator("auto_speak", value)} />
-          <FormDivider />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", width: "100%" }} />
           <ToggleField label="Detectar el juego activo" checked={settings.game_detection.enabled}
             onChange={(value) => updateDetection("enabled", value)} />
           <TextField label="Intervalo de detección (8–60 segundos)"
@@ -96,7 +96,7 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
             description="Rutas separadas por comas. Útil para Heroic, GOG, Epic o Lutris."
             value={settings.game_detection.roots.join(", ")}
             onChange={(event) => updateDetection("roots", event.target.value.split(",").map((path) => path.trim()).filter(Boolean))} />
-          <FormDivider />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", width: "100%" }} />
           <ToggleField label="Habilitar voz Piper" checked={settings.tts.enabled}
             onChange={(value) => updateTTS("enabled", value)} />
           <TextField label="Ruta al modelo de voz Piper (.onnx)" value={settings.tts.voice_model}
@@ -107,7 +107,7 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
             onChange={(event) => updateTTS("piper_binary", event.target.value)} />
           <TextField label="Velocidad de voz (0.5–2.0)" value={String(settings.tts.speed)}
             onChange={(event) => updateTTS("speed", Number.parseFloat(event.target.value) || 1)} />
-          <FormDivider />
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)", width: "100%" }} />
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <ButtonItem disabled={working} onClick={verify}>Probar recursos</ButtonItem>
             <ButtonItem disabled={working} onClick={persist}>Guardar ajustes</ButtonItem>

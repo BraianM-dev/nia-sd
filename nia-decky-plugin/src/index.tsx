@@ -98,7 +98,7 @@ function App() {
           <Focusable flow-children="down" style={{ gap: "8px", width: "100%" }}>
             <Field label="Detalle opcional">
               <TextField value={detail} onChange={(event) => setDetail(event.target.value)}
-                placeholder="Ej.: encontré la salida del castillo" disabled={!game || busy} />
+                disabled={!game || busy} />
             </Field>
             <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("death")}>Morí / repetí una sección</ButtonItem>
             <ButtonItem layout="below" disabled={!game || busy} onClick={() => void act("checkpoint")}>Llegué a un checkpoint</ButtonItem>
