@@ -25,6 +25,15 @@ _EVENT_LABELS = {
     "victory": "victoria",
     "commentary": "intervención solicitada por el jugador",
 }
+_PROVIDER_DEFAULTS = {
+    "openai": {"endpoint": "https://api.openai.com/v1/chat/completions", "model": "gpt-5.6-terra"},
+    "grok": {"endpoint": "https://api.x.ai/v1/chat/completions", "model": "grok-4.7"},
+    "deepseek": {"endpoint": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-flash"},
+    "gemini": {
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "model": "gemini-3.8-flash",
+    },
+}
 _TEMPLATES = {
     "session_start": [
         "Se abre la sesión de «{title}». NIA ya tiene el contexto: {context}.",
@@ -56,9 +65,11 @@ _TEMPLATES = {
 
 
 class NiaNarrator:
-    def __init__(self, settings_provider: Callable[[], Dict[str, Any]], store: NiaStore) -> None:
+    def __init__(self, settings_provider: Callable[[], Dict[str, Any]], store: NiaStore,
+                 local_runtime: Any = None) -> None:
         self.settings_provider = settings_provider
         self.store = store
+        self.local_runtime = local_runtime
         self._metadata_checked = set()
 
     async def narrate(self, game: Dict[str, Any], event: Dict[str, Any], session_started: float) -> Dict[str, Any]:
@@ -78,12 +89,15 @@ class NiaNarrator:
         stats = self.store.game_stats(game_id)
         minutes = max(0, int((__import__("time").time() - session_started) / 60))
         context = self._build_context(game, event, metadata, stats, minutes)
-        provider = narrator.get("provider", "ollama")
+        provider = narrator.get("provider", "local-llama")
         error = ""
         text = ""
-        if provider in {"ollama", "openai-compatible"}:
+        if provider in {"ollama", "openai-compatible", "local-llama", "openai", "grok", "deepseek", "gemini"}:
             try:
-                text = self._request_model(narrator, game, event, metadata, stats, minutes)
+                request_config = dict(narrator)
+                request_config["local_runtime"] = settings.get("local_runtime", {})
+                request_config["model_path"] = settings.get("model", {}).get("path", "")
+                text = self._request_model(request_config, game, event, metadata, stats, minutes)
             except Exception as exc:
                 error = str(exc)[:240]
         if not text:
@@ -121,6 +135,20 @@ class NiaNarrator:
         provider = str(config.get("provider", "ollama"))
         endpoint = str(config.get("endpoint", "")).strip()
         model = str(config.get("model", "")).strip()
+        token = str(config.get("api_key", "")).strip()
+        if provider in _PROVIDER_DEFAULTS:
+            preset = _PROVIDER_DEFAULTS[provider]
+            endpoint = endpoint or preset["endpoint"]
+            model = model or preset["model"]
+            if not token:
+                raise RuntimeError("Falta la clave API del proveedor seleccionado")
+        elif provider == "local-llama":
+            if not self.local_runtime:
+                raise RuntimeError("El motor local de NIA no está inicializado")
+            endpoint, token = self.local_runtime.openai_endpoint(
+                config.get("local_runtime", {}), str(config.get("model_path", "")),
+            )
+            model = model or "local-qwen"
         if not endpoint or not model:
             raise RuntimeError("Configura el endpoint y el modelo del narrador")
         persona = _PERSONA.get(str(config.get("persona", "amable")), _PERSONA["amable"])
@@ -134,9 +162,9 @@ class NiaNarrator:
             "Evita repetir las narraciones recientes y no interrumpas con preguntas largas."
         )
         user = json.dumps(context, ensure_ascii=False)
-        timeout = max(2, min(30, int(config.get("timeout", 8))))
+        timeout = 90 if provider == "local-llama" else max(2, min(60, int(config.get("timeout", 8))))
         body: Dict[str, Any]
-        headers = {"Content-Type": "application/json", "User-Agent": "NIA-Decky/0.2"}
+        headers = {"Content-Type": "application/json", "User-Agent": "NIA-Decky/0.3"}
         if provider == "ollama":
             if not endpoint.rstrip("/").endswith("/api/chat"):
                 endpoint = endpoint.rstrip("/") + "/api/chat"
@@ -155,11 +183,11 @@ class NiaNarrator:
             body = {
                 "model": model,
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                "max_tokens": max(32, min(180, int(config.get("max_tokens", 96)))),
                 "temperature": max(0.1, min(1.5, float(config.get("temperature", 0.7)))),
                 "stream": False,
             }
-            token = str(config.get("api_key", "")).strip()
+            token_limit = max(32, min(180, int(config.get("max_tokens", 96))))
+            body["max_completion_tokens" if provider == "openai" else "max_tokens"] = token_limit
             if token:
                 headers["Authorization"] = "Bearer " + token
         request = Request(endpoint, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
@@ -198,11 +226,21 @@ class NiaNarrator:
         return text[:1000]
 
     async def probe(self) -> Dict[str, Any]:
-        config = self.settings_provider().get("narrator", {})
+        settings = self.settings_provider()
+        config = settings.get("narrator", {})
         provider = config.get("provider", "ollama")
         if provider == "template":
             return {"ok": True, "message": "El narrador contextual local está disponible"}
+        if provider == "local-llama":
+            if not self.local_runtime:
+                return {"ok": False, "message": "El motor local de NIA no está inicializado"}
+            runtime = self.local_runtime.status(str(settings.get("model", {}).get("path", "")))
+            if runtime["engine_installed"] and runtime["model_installed"]:
+                return {"ok": True, "message": "llama.cpp y el modelo local están instalados"}
+            return {"ok": False, "message": "Instala llama.cpp y el modelo local desde Ajustes"}
         endpoint = str(config.get("endpoint", "")).strip()
+        if provider in _PROVIDER_DEFAULTS:
+            endpoint = endpoint or _PROVIDER_DEFAULTS[provider]["endpoint"]
         if not endpoint:
             return {"ok": False, "message": "Falta configurar el endpoint"}
         try:
@@ -210,10 +248,13 @@ class NiaNarrator:
                 base = endpoint.rstrip("/")
                 if base.endswith("/api/chat"):
                     base = base[:-9]
-                request = Request(base + "/api/tags", headers={"User-Agent": "NIA-Decky/0.2"})
+                request = Request(base + "/api/tags", headers={"User-Agent": "NIA-Decky/0.3"})
                 await asyncio.to_thread(lambda: urlopen(request, timeout=3).read(4096))
             else:
+                if provider in _PROVIDER_DEFAULTS and not str(config.get("api_key", "")).strip():
+                    return {"ok": False, "message": "Guarda la clave API del proveedor seleccionado"}
                 return {"ok": True, "message": "Endpoint configurado; se probará al narrar"}
             return {"ok": True, "message": "Ollama responde"}
         except (OSError, URLError, TimeoutError):
             return {"ok": False, "message": "No se pudo conectar; NIA usará el comentario local"}
+
