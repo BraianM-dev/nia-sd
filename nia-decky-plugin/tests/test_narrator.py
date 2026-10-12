@@ -97,6 +97,17 @@ class NarratorTests(unittest.TestCase):
             body = json.loads(request.data.decode("utf-8"))
             self.assertIn("irónico y mordaz", body["messages"][0]["content"])
 
+    def test_invalid_profiles_do_not_break_narration(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = NiaStore(Path(temp) / "nia.sqlite3")
+            settings = {"narrator": {"provider": "template", "persona": "amable"}, "game_profiles": None}
+            narrator = NiaNarrator(lambda: settings, store)
+            result = narrator._narrate_sync(
+                {"id": "game:legacy", "title": "Partida antigua", "platform": "Steam"},
+                {"type": "commentary", "detail": ""}, 0,
+            )
+            self.assertIn("Partida antigua", result["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
