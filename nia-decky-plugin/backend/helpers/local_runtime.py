@@ -349,10 +349,17 @@ class LocalRuntime:
             command = [nice, "-n", "10"] + command
         log_path = self.root / "llama-server.log"
         self._log_handle = log_path.open("wb")
+        env = os.environ.copy()
+        bundled_libraries = sorted({
+            str(path.parent) for path in self.engine_dir.rglob("*.so*") if path.is_file()
+        })
+        library_path = os.pathsep.join(bundled_libraries + ([env["LD_LIBRARY_PATH"]] if env.get("LD_LIBRARY_PATH") else []))
+        if library_path:
+            env["LD_LIBRARY_PATH"] = library_path
         try:
             self._process = subprocess.Popen(
                 command, stdin=subprocess.DEVNULL, stdout=self._log_handle, stderr=subprocess.STDOUT,
-                close_fds=True, start_new_session=True,
+                close_fds=True, start_new_session=True, env=env,
             )
         except Exception:
             self._log_handle.close()
