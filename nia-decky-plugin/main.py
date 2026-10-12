@@ -247,7 +247,9 @@ class Plugin:
         if not tts_config.get("enabled"):
             raise RuntimeError("Activa Piper en Ajustes para habilitar la voz")
         game_id = str((self._active_game or {}).get("id", ""))
-        profile_voice = self.settings.get("game_profiles", {}).get(game_id, {}).get("voice_model", "")
+        profiles = self.settings.get("game_profiles", {})
+        profile = profiles.get(game_id, {}) if isinstance(profiles, dict) else {}
+        profile_voice = profile.get("voice_model", "") if isinstance(profile, dict) else ""
         voice_path = voice or profile_voice or tts_config.get("voice_model") or tts_config.get("path")
         return await tts.synthesize(
             str(text)[:3000], str(voice_path or ""),
