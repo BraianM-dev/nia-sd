@@ -2,9 +2,9 @@ import {
   ButtonItem, Field, Focusable, PanelSection, PanelSectionRow, TextField, ToggleField,
 } from "@decky/ui";
 import { useEffect, useState } from "react";
-import { api, LocalRuntimeStatus, Provider, Settings } from "../lib/api";
+import { api, GameInfo, GameProfile, LocalRuntimeStatus, Persona, Provider, Settings } from "../lib/api";
 
-type Props = { settings: Settings | null; onSettingsChange: (settings: Settings) => void };
+type Props = { settings: Settings | null; activeGame: GameInfo | null; onSettingsChange: (settings: Settings) => void };
 
 const PROVIDER_PRESETS: Partial<Record<Provider, { endpoint: string; model: string }>> = {
   "local-llama": { endpoint: "", model: "qwen2.5-1.5b-instruct-q4_k_m" },
@@ -21,6 +21,7 @@ const PROVIDER_PRESETS: Partial<Record<Provider, { endpoint: string; model: stri
 function LocalRuntimePanel({ settings }: { settings: Settings }) {
   const [runtime, setRuntime] = useState<LocalRuntimeStatus | null>(null);
   const [working, setWorking] = useState(false);
+  const [actionError, setActionError] = useState("");
   const modelPath = settings.model.path || "";
 
   useEffect(() => {
@@ -47,6 +48,7 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
       setRuntime(await api.installLocalRuntime(modelPath));
     } catch (error) {
       console.error(error);
+      setActionError(error instanceof Error ? error.message : "No se pudo instalar el motor local");
     } finally {
       setWorking(false);
     }
@@ -57,6 +59,19 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
       setRuntime(await api.removeLocalRuntime());
     } catch (error) {
       console.error(error);
+      setActionError(error instanceof Error ? error.message : "No se pudo eliminar el motor local");
+    } finally {
+      setWorking(false);
+    }
+  };
+  const cancel = async () => {
+    setWorking(true);
+    setActionError("");
+    try {
+      setRuntime(await api.cancelLocalRuntimeInstall());
+    } catch (error) {
+      console.error(error);
+      setActionError(error instanceof Error ? error.message : "No se pudo cancelar la instalación");
     } finally {
       setWorking(false);
     }
@@ -79,10 +94,14 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
           <div style={{ width: progress + "%", height: "100%", background: "#8bc34a", borderRadius: "4px" }} />
         </div>
       )}
+      {actionError && <div role="alert" style={{ color: "var(--color-error)", fontSize: "12px" }}>{actionError}</div>}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <ButtonItem disabled={working || Boolean(runtime?.installing) || installed} onClick={install}>
           {runtime?.installing ? "Instalando…" : installed ? "Motor y modelo instalados" : usesCustomModel ? "Instalar motor llama.cpp" : "Descargar e instalar (aprox. 1,12 GB)"}
         </ButtonItem>
+        {runtime?.installing && (
+          <ButtonItem disabled={working} onClick={cancel}>Cancelar instalación</ButtonItem>
+        )}
         {installed && (
           <ButtonItem disabled={working || Boolean(runtime?.installing)} onClick={remove}>
             Eliminar motor y modelo de NIA
@@ -98,7 +117,7 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
   );
 }
 
-export function SettingsView({ settings, onSettingsChange }: Props) {
+export function SettingsView({ settings, activeGame, onSettingsChange }: Props) {
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState("");
   useEffect(() => setStatus(settings?.status ?? ""), [settings]);
@@ -111,6 +130,24 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
   ) => onSettingsChange({ ...settings, game_detection: { ...settings.game_detection, [key]: value } });
   const updateTTS = <K extends keyof Settings["tts"],>(key: K, value: Settings["tts"][K]) =>
     onSettingsChange({ ...settings, tts: { ...settings.tts, [key]: value } });
+  const gameProfiles: Record<string, GameProfile> = settings.game_profiles || {};
+  const activeProfile = activeGame ? gameProfiles[activeGame.id] || {} : {};
+  const updateGameProfile = (key: keyof GameProfile, value: string) => {
+    if (!activeGame) return;
+    const nextProfile: GameProfile = { ...activeProfile };
+    if (key === "persona") {
+      if (value === "default") delete nextProfile.persona;
+      else nextProfile.persona = value as Persona;
+    } else if (value.trim()) {
+      nextProfile.voice_model = value;
+    } else {
+      delete nextProfile.voice_model;
+    }
+    const nextProfiles = { ...gameProfiles };
+    if (Object.keys(nextProfile).length) nextProfiles[activeGame.id] = nextProfile;
+    else delete nextProfiles[activeGame.id];
+    onSettingsChange({ ...settings, game_profiles: nextProfiles });
+  };
 
   const verify = async () => {
     setWorking(true);
@@ -184,7 +221,7 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
             </Field>
           )}
           {settings.narrator.provider === "local-llama" && <LocalRuntimePanel settings={settings} />}
-          <Field label="Personalidad de NIA">
+          <Field label="Personalidad predeterminada de NIA">
             <select className="DeckySelectable" value={settings.narrator.persona}
               onChange={(event) => updateNarrator("persona", event.target.value as Settings["narrator"]["persona"])}>
               <option value="amable">Amable</option>
@@ -192,6 +229,25 @@ export function SettingsView({ settings, onSettingsChange }: Props) {
               <option value="grosero">Grosera, con humor</option>
               <option value="epico">Épica</option>
             </select>
+          </Field>
+          <Field label={activeGame ? `Perfil de ${activeGame.title}` : "Perfil por juego"}
+            description={activeGame ? "Personalidad y voz específicas para este juego; los campos vacíos heredan los ajustes predeterminados." : "Inicia un juego para configurar una personalidad y una voz exclusivas."}>
+            {activeGame ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                <select className="DeckySelectable" value={activeProfile.persona || "default"}
+                  onChange={(event) => updateGameProfile("persona", event.target.value)}>
+                  <option value="default">Personalidad predeterminada ({settings.narrator.persona})</option>
+                  <option value="amable">Amable</option>
+                  <option value="sarcastico">Sarcástica</option>
+                  <option value="grosero">Grosera, con humor</option>
+                  <option value="epico">Épica</option>
+                </select>
+                <TextField label="Voz Piper exclusiva (.onnx, opcional)"
+                  description="Ruta vacía usa la voz predeterminada. La reproducción requiere Piper y un reproductor de audio instalado."
+                  value={activeProfile.voice_model || ""}
+                  onChange={(event) => updateGameProfile("voice_model", event.target.value)} />
+              </div>
+            ) : <div style={{ fontSize: "12px", opacity: 0.75 }}>No hay un juego activo; abre el panel NIA cuando un juego esté en ejecución.</div>}
           </Field>
           <TextField label="Tiempo máximo de respuesta (segundos, APIs remotas)"
             value={String(settings.narrator.timeout)}
