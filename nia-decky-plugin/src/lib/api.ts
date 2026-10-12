@@ -1,6 +1,6 @@
 import { callable } from "@decky/api";
 
-export type Provider = "ollama" | "openai-compatible" | "template";
+export type Provider = "local-llama" | "ollama" | "openai" | "grok" | "deepseek" | "gemini" | "openai-compatible" | "template";
 export type Persona = "amable" | "sarcastico" | "grosero" | "epico";
 export type GameEventType = "death" | "checkpoint" | "objective" | "victory" | "commentary";
 
@@ -16,6 +16,7 @@ export interface Settings {
   remote: { enabled: boolean; endpoint: string; auth: string; timeout?: number };
   narrator: NarratorSettings;
   game_detection: { enabled: boolean; scan_interval_seconds: number; roots: string[] };
+  local_runtime: { threads: number; context_size: number; idle_sleep_seconds: number };
   status?: string;
 }
 export interface GameInfo { id: string; appid?: string; title: string; platform: string; install_path?: string; process_name?: string }
@@ -28,6 +29,11 @@ export interface GameState {
   scanned_at: number;
 }
 export interface NarrationResult { text: string; status: string; game_id?: string; event_type?: string; source?: string }
+export interface LocalRuntimeStatus {
+  installing: boolean; progress: number; message: string; error: string; engine_installed: boolean;
+  model_installed: boolean; model_source: string; model_size_bytes: number; server_running: boolean;
+  runtime_version: string; recommended_model: string;
+}
 export interface StoryParams {
   genre: string; tone: string; keywords: string[]; characters: string[];
   length: "short" | "medium" | "long"; seed?: number;
@@ -48,6 +54,9 @@ const saveDelete = callable<[id: string], boolean>("save_delete");
 const saveCreate = callable<[title: string, content: string, metadata?: Record<string, unknown>], SaveEntry>("save_create");
 const speak = callable<[text: string, voice?: string], { playing: boolean; player: string }>("tts_speak");
 const verifyResources = callable<[], { status: string; details: string[] }>("verify_resources");
+const localRuntimeStatus = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_status");
+const localRuntimeInstall = callable<[modelPath?: string], LocalRuntimeStatus>("local_runtime_install");
+const localRuntimeRemove = callable<[], LocalRuntimeStatus>("local_runtime_remove");
 
 export const api = {
   getSettings: () => settingsGet(),
@@ -66,4 +75,7 @@ export const api = {
     saveCreate(payload.title, payload.content, payload.metadata),
   speak: (text: string, voice?: string) => speak(text, voice),
   verifyResources: () => verifyResources(),
+  localRuntimeStatus: (modelPath = "") => localRuntimeStatus(modelPath),
+  installLocalRuntime: (modelPath = "") => localRuntimeInstall(modelPath),
+  removeLocalRuntime: () => localRuntimeRemove(),
 };
