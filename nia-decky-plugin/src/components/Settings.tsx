@@ -63,6 +63,7 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
   };
 
   const installed = Boolean(runtime?.engine_installed && runtime?.model_installed);
+  const usesCustomModel = Boolean(modelPath.trim());
   const progress = Math.max(0, Math.min(100, runtime?.progress ?? 0));
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -80,17 +81,18 @@ function LocalRuntimePanel({ settings }: { settings: Settings }) {
       )}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <ButtonItem disabled={working || Boolean(runtime?.installing) || installed} onClick={install}>
-          {runtime?.installing ? "Instalando…" : installed ? "Motor y modelo instalados" : "Descargar e instalar (aprox. 1,12 GB)"}
+          {runtime?.installing ? "Instalando…" : installed ? "Motor y modelo instalados" : usesCustomModel ? "Instalar motor llama.cpp" : "Descargar e instalar (aprox. 1,12 GB)"}
         </ButtonItem>
         {installed && (
           <ButtonItem disabled={working || Boolean(runtime?.installing)} onClick={remove}>
-            Eliminar motor y modelo
+            Eliminar motor y modelo de NIA
           </ButtonItem>
         )}
       </div>
       <div style={{ fontSize: "12px", opacity: 0.7 }}>
-        Usa llama.cpp y Qwen 1.5B Q4_K_M. Se instala en los datos de NIA, sin root. Corre en localhost,
-        limita CPU a 2 hilos por defecto y descarga el modelo de memoria tras quedar inactivo.
+        {usesCustomModel ? "Se usará el GGUF indicado arriba; esa ruta no se borra al eliminar el motor." : "Usa Qwen 1.5B Q4_K_M."}
+        {" "}Se instala en los datos de NIA, sin root. Corre en localhost, limita CPU a 2 hilos por defecto
+        y descarga el modelo de memoria tras quedar inactivo.
       </div>
     </div>
   );
