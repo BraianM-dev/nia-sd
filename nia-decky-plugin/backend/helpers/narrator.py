@@ -26,7 +26,7 @@ _EVENT_LABELS = {
     "commentary": "intervención solicitada por el jugador",
 }
 _PROVIDER_DEFAULTS = {
-    "openai": {"endpoint": "https://api.openai.com/v1/chat/completions", "model": "gpt-5.6-terra"},
+    "openai": {"endpoint": "https://api.openai.com/v1/chat/completions", "model": "gpt-6-luna"},
     "grok": {"endpoint": "https://api.x.ai/v1/chat/completions", "model": "grok-4.7"},
     "deepseek": {"endpoint": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-flash"},
     "gemini": {
@@ -170,7 +170,7 @@ class NiaNarrator:
         user = json.dumps(context, ensure_ascii=False)
         timeout = 90 if provider == "local-llama" else max(2, min(60, int(config.get("timeout", 8))))
         body: Dict[str, Any]
-        headers = {"Content-Type": "application/json", "User-Agent": "NIA-Decky/0.3"}
+        headers = {"Content-Type": "application/json", "User-Agent": "NIA-Decky/0.4"}
         if provider == "ollama":
             if not endpoint.rstrip("/").endswith("/api/chat"):
                 endpoint = endpoint.rstrip("/") + "/api/chat"
@@ -254,7 +254,7 @@ class NiaNarrator:
                 base = endpoint.rstrip("/")
                 if base.endswith("/api/chat"):
                     base = base[:-9]
-                request = Request(base + "/api/tags", headers={"User-Agent": "NIA-Decky/0.3"})
+                request = Request(base + "/api/tags", headers={"User-Agent": "NIA-Decky/0.4"})
                 await asyncio.to_thread(lambda: urlopen(request, timeout=3).read(4096))
             else:
                 if provider in _PROVIDER_DEFAULTS and not str(config.get("api_key", "")).strip():
