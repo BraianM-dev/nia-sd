@@ -1,50 +1,63 @@
-# NIA — Narrador inteligente asistido
+# NIA para Decky — narrador de videojuegos
 
-NIA es un plugin de Decky Loader para Steam Deck/SteamOS. Detecta juegos activos mediante procesos del usuario y manifiestos locales de Steam. También puede reconocer instalaciones de Heroic, GOG, Epic o Lutris si están dentro de una carpeta detectada o configurada. El panel lateral permite registrar eventos y generar narración breve, vinculada al juego y a la sesión.
+NIA es un plugin para Decky Loader en Steam Deck/SteamOS. Detecta el juego activo, guarda el contexto de cada sesión y crea comentarios breves con un modelo local, un proveedor de API o un narrador contextual que no usa LLM.
 
-## Estado de la versión 0.2
+## Motor local recomendado
 
-- Detección pasiva del juego activo, sin inyección ni lectura de memoria.
-- Inventario local de títulos Steam y carpetas de juegos adicionales.
-- Registro por juego en SQLite de sesiones, muertes, checkpoints, objetivos y victorias.
-- Generación breve con Ollama local, endpoint compatible con OpenAI o comentario contextual sin LLM.
-- Personalidad amable, sarcástica, grosera con humor o épica.
-- Historial por juego enviado al modelo para reducir repeticiones.
-- Piper opcional, desactivado por defecto.
-- OCR, análisis de audio y lectura de entradas desactivados.
+NIA incluye un instalador opcional para llama.cpp y Qwen2.5 1.5B Instruct Q4_K_M. No depende de Ollama ni de que Ollama siga ejecutándose al entrar en Modo Juego. En Ajustes → Motor de narración, elige **NIA local · llama.cpp** y pulsa **Descargar e instalar**.
 
-La posición exacta, el nivel, la vida y las muertes no están disponibles de forma genérica para todos los juegos. En esta versión, las muertes, checkpoints y objetivos se registran con los botones del panel. El diseño permite agregar adaptadores específicos por juego más adelante.
+- Descarga el motor CPU de llama.cpp y un modelo GGUF de aproximadamente 1,12 GB solo después de pulsar el botón.
+- Comprueba las sumas SHA-256 publicadas por los proyectos upstream antes de instalar ambos archivos.
+- Instala los recursos en el directorio de datos de NIA, sin `sudo`, paquetes del sistema ni cambios a SteamOS.
+- Ejecuta llama-server solo cuando NIA necesita narrar, enlazado a `127.0.0.1` y protegido con una clave aleatoria.
+- Por defecto limita la inferencia a 2 hilos, contexto de 2048 tokens y prioridad baja. llama.cpp descarga los pesos de la RAM tras 90 segundos sin uso.
+- Si una descarga se interrumpe, la conserva para reanudarla. También se puede indicar una ruta a otro GGUF compatible.
 
-## Instalación
+La inferencia local usa CPU y puede tardar más que una API remota; consume CPU mientras genera. Los límites reducen el impacto, pero no garantizan cero cambios en FPS. NIA no genera narraciones en segundo plano de forma periódica: consulta al modelo cuando se inicia un juego (si esa opción está activada) o cuando se registra un evento.
 
-1. Instala Decky Loader en SteamOS.
-2. Descarga nia-decky-latest.zip de la sección Releases del repositorio.
-3. En modo Escritorio, abre Decky Settings → Developer → Install plugin from ZIP file y selecciona el paquete.
-4. Abre el menú lateral de Decky. En Ajustes, configura Ollama o deja seleccionado el comentario contextual local.
+## Proveedores de IA
 
-El ZIP contiene plugin.json, main.py, dist/index.js, backend, recursos y licencia en el nivel que espera Decky. El instalador opcional installer.sh acepta un ZIP o una copia local construida. No instala Decky, no descarga modelos ni elimina datos de configuración. Con --force, conserva una copia de la instalación anterior.
+Desde Ajustes se puede elegir:
 
-## Conectar Ollama
+| Proveedor | Endpoint preconfigurado | Modelo inicial editable |
+| --- | --- | --- |
+| NIA local | llama.cpp incluido | Qwen2.5 1.5B Q4_K_M |
+| Ollama | Local o en otra máquina | `qwen2.5:3b` |
+| OpenAI API | Chat Completions | `gpt-5.6-terra` |
+| xAI Grok API | Chat Completions | `grok-4.7` |
+| DeepSeek API | Chat Completions | `deepseek-v4-flash` |
+| Google Gemini API | Compatibilidad OpenAI | `gemini-3.8-flash` |
+| Compatible con OpenAI | Endpoint configurable | Modelo configurable |
+| Contextual sin LLM | Sin endpoint | Sin modelo |
 
-Por defecto NIA prueba http://127.0.0.1:11434 con el modelo qwen2.5:3b. El modelo debe estar instalado y Ollama debe estar activo en la Steam Deck. Si Ollama corre en otra computadora, configura la dirección de esa computadora y habilita allí el acceso desde la red local.
+Cada proveedor remoto requiere una clave API del servicio elegido. La clave se guarda en la configuración local con permisos de usuario y se borra del formulario al cambiar de proveedor para evitar mandarla por error al siguiente. El contenido narrado y el contexto de partida se envían al proveedor seleccionado. El uso de OpenAI API se factura aparte de ChatGPT Plus/Pro; lo mismo aplica a las API de otros proveedores y sus planes de chat.
 
-Para usar una API compatible con OpenAI, selecciona ese proveedor, indica la URL completa del endpoint chat/completions, el modelo y una API key. La key queda en la configuración local de NIA y no aparece en los logs. NIA envía una solicitud breve por evento; no genera texto periódicamente.
+Los endpoints y modelos se pueden editar. Si el proveedor cambia su catálogo, se puede elegir otro modelo compatible sin actualizar NIA. Para usar Ollama de una computadora distinta, escribe su dirección de red; una configuración previa de Ollama en `localhost` se migra al motor local incluido.
+
+## Partidas, progreso y detección
+
+NIA detecta procesos de juegos y manifiestos locales de Steam. Puede buscar ejecutables en carpetas que agregues, por ejemplo bibliotecas usadas por Heroic, GOG, Epic o Lutris. No necesita que el juego se ejecute mediante una sola tienda para poder aparecer en el catálogo, aunque cada launcher guarda sus instalaciones de forma distinta.
+
+El plugin registra sesiones, muertes, checkpoints, objetivos y victorias en SQLite. Los eventos se marcan desde el panel. No existe una API universal que permita a Decky conocer el nivel, la ubicación, la vida o las muertes internas de cada juego; para automatizar esos datos hacen falta adaptadores específicos por juego o datos públicos de una API/achievement. NIA no inyecta código, no lee memoria del proceso, capturas, teclado ni mouse.
+
+Las narraciones recientes se pasan como contexto para reducir repeticiones. Si no hay conexión, una clave, un modelo instalado o el servidor falla, NIA sigue respondiendo con frases contextuales locales.
 
 ## Voz opcional
 
-La reproducción requiere Piper, un modelo de voz ONNX y un reproductor de audio de SteamOS (pw-play, paplay o aplay). NIA no instala binarios ni descarga modelos de voz automáticamente. La voz se puede activar y ajustar desde el panel; sin voz, la narración queda como texto.
+Se puede activar Piper y configurar una voz desde el panel. La instalación de Piper y la descarga de su voz se hacen manualmente: se necesita un binario Piper ejecutable, un modelo `.onnx` y un reproductor disponible en SteamOS (`pw-play`, `paplay` o `aplay`). Sin esos recursos, NIA sigue mostrando texto y no intenta reproducir audio.
 
-## Consumo, datos y límites
+## Instalación como plugin Decky
 
-La detección revisa procesos y carpetas cada 8 a 60 segundos (12 por defecto). Las consultas al modelo ocurren al marcar un evento o al activar el comentario al inicio de una partida. Un modelo de Ollama en otra máquina se ejecuta fuera de la Steam Deck; NIA envía solo el contexto mínimo del juego activo, el evento, las estadísticas registradas y narraciones recientes.
+1. Instala Decky Loader en SteamOS.
+2. Descarga `nia-decky-latest.zip` de Releases o usa el artefacto ZIP generado por CI.
+3. En modo Escritorio, abre Decky Settings → Developer → Install plugin from ZIP file y selecciona el ZIP.
+4. En el panel lateral, abre Ajustes, elige el motor y la personalidad y, para narrar con LLM local, pulsa **Descargar e instalar**.
 
-La base de datos, configuración, partidas y logs se guardan bajo ~/.local/share/nia-decky/. Los metadatos de Steam se consultan bajo demanda para un juego activo y quedan en caché. Sin conexión o sin un modelo disponible, funciona el comentario contextual local.
-
-NIA no puede deducir universalmente las escenas internas ni contar muertes automáticamente. Para eso se necesitarán adaptadores por juego, APIs expuestas por el juego o integraciones opcionales como OCR. NIA no lee memoria, capturas, teclado ni mouse.
+Los archivos del modelo no se incluyen en el ZIP. Se descargan dentro de los datos de NIA solo cuando el usuario lo decide. La configuración, los datos, la base de datos y los logs quedan bajo `~/.local/share/nia-decky/` (o `$XDG_DATA_HOME/nia-decky/`). La clave API se escribe con permisos `0600`.
 
 ## Desarrollo
 
-Desde la carpeta nia-decky-plugin:
+Desde esta carpeta:
 
 ```bash
 pnpm install
@@ -54,4 +67,4 @@ pnpm lint
 pnpm test
 ```
 
-La interfaz usa TypeScript/React con @decky/ui y @decky/api; Decky ejecuta el backend Python de main.py. El ZIP incluye los archivos de distribución requeridos por Decky.
+La interfaz usa TypeScript/React con `@decky/ui` y `@decky/api`; Decky ejecuta el backend Python. `scripts/pack.sh` crea el ZIP instalable de Decky.
