@@ -16,9 +16,8 @@ function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [newState, newSettings] = await Promise.all([api.getGameState(), api.getSettings()]);
+      const newState = await api.getGameState();
       setGameState(newState);
-      setSettings(newSettings);
       const gameId = newState.active_game?.id || "";
       if (gameId !== currentGameId.current) {
         currentGameId.current = gameId;
@@ -34,6 +33,10 @@ function App() {
 
   useEffect(() => {
     void refresh();
+    void api.getSettings().then(setSettings).catch((error) => {
+      console.error(error);
+      setStatus("NIA no pudo cargar los ajustes");
+    });
     const timer = window.setInterval(() => void refresh(), 12000);
     return () => window.clearInterval(timer);
   }, [refresh]);
