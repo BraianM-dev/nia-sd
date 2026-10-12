@@ -119,18 +119,6 @@ class Plugin:
 
     async def game_state(self) -> Dict[str, Any]:
         game = self._active_game
-        detection = self.settings.get("game_detection", {})
-        if not game and detection.get("enabled", True):
-            game = await asyncio.to_thread(
-                find_running_game,
-                detection.get("roots", []),
-                await self.list_games(),
-            )
-            if game:
-                self._active_game = game
-                self._session_started = time.time()
-                if self.store:
-                    self.store.record_event(game["id"], "session_start", "Juego detectado al consultar el panel")
         if not game:
             return {"active_game": None, "message": "No se detectó un juego activo", "scanned_at": time.time()}
         stats = self.store.game_stats(game["id"]) if self.store else {}
