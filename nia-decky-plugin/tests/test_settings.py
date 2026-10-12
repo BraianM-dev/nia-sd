@@ -44,6 +44,20 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(result["status"], "degraded")
         self.assertIn("Falta la clave API", result["details"][0])
 
+    def test_settings_keep_bounded_per_game_voice_and_tone_profiles(self):
+        plugin = Plugin()
+        with tempfile.TemporaryDirectory() as temp:
+            with patch("main.atomic_write_json"), patch("main.get_config_path", return_value=Path(temp) / "config.json"):
+                saved = asyncio.run(plugin.settings_set({
+                    "game_profiles": {
+                        "steam:123": {"persona": "epico", "voice_model": "~/voices/narrator.onnx"},
+                        "steam:ignored": {"persona": "unknown", "voice_model": ""},
+                    },
+                }))
+        self.assertEqual(saved["game_profiles"], {
+            "steam:123": {"persona": "epico", "voice_model": "~/voices/narrator.onnx"},
+        })
+
 
 if __name__ == "__main__":
     unittest.main()
